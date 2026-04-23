@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IRIS — Issue Reporting & Intelligence System | Club Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0f0f0f;--surface:#191919;--surface2:#222222;
+    --border:#2e2e2e;--text:#f0ede8;--muted:#7a7570;
+    --accent:#e8c97a;--accent2:#7ac4e8;
+    --critical:#e87a7a;--high:#e8a87a;--medium:#e8d77a;--low:#7ae8a8;
+    --ai:#b87ae8;--radius:12px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;min-height:100vh;}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:100;}
+  .logo{font-family:'DM Serif Display',serif;font-size:22px;color:var(--accent);}
+  .logo span{color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;margin-left:10px;opacity:0.5;}
+  .header-stats{display:flex;gap:24px;}
+  .hstat{text-align:center;}
+  .hstat-val{font-size:18px;font-weight:600;color:var(--accent);}
+  .hstat-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
+
+  .toolbar{display:flex;align-items:center;gap:10px;padding:14px 32px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .filter-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
+  .filter-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all 0.15s;}
+  .filter-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .filter-btn.active{background:var(--accent);color:#0f0f0f;border-color:var(--accent);font-weight:600;}
+  .search-wrap{margin-left:auto;position:relative;}
+  .search-wrap input{background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 12px 7px 32px;width:220px;outline:none;transition:border 0.15s;}
+  .search-wrap input:focus{border-color:var(--accent);}
+  .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);}
+
+  .loading{text-align:center;padding:60px;color:var(--muted);font-size:14px;grid-column:1/-1;}
+  .spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;padding:24px 32px;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:transform 0.2s,border-color 0.2s;animation:fadeUp 0.4s ease both;}
+  .card:hover{transform:translateY(-3px);border-color:#3e3e3e;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+  .card-media{width:100%;height:180px;background:var(--surface2);position:relative;overflow:hidden;cursor:pointer;}
+  .card-media img{width:100%;height:100%;object-fit:cover;transition:transform 0.3s;}
+  .card-media:hover img{transform:scale(1.04);}
+  .no-media{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:12px;cursor:default;}
+  .no-media-icon{width:36px;height:36px;border:1px dashed var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .media-overlay{position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);border-radius:6px;padding:4px 8px;font-size:11px;color:#fff;}
+  .ai-cat-badge{position:absolute;top:8px;left:8px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(184,122,232,0.85);color:#fff;}
+
+  .card-body{padding:16px;}
+  .card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+  .severity-badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:0.4px;}
+  .sev-Critical{background:rgba(232,122,122,0.15);color:var(--critical);border:1px solid rgba(232,122,122,0.3);}
+  .sev-High{background:rgba(232,168,122,0.15);color:var(--high);border:1px solid rgba(232,168,122,0.3);}
+  .sev-Medium{background:rgba(232,215,122,0.15);color:var(--medium);border:1px solid rgba(232,215,122,0.3);}
+  .sev-Low{background:rgba(122,232,168,0.15);color:var(--low);border:1px solid rgba(122,232,168,0.3);}
+  .status-dot{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+  .dot{width:7px;height:7px;border-radius:50%;}
+  .dot-open{background:var(--critical);box-shadow:0 0 6px var(--critical);}
+  .dot-in_progress{background:var(--medium);box-shadow:0 0 6px var(--medium);}
+  .dot-resolved{background:var(--low);box-shadow:0 0 6px var(--low);}
+  .card-place{font-size:11px;color:var(--accent2);margin-bottom:6px;}
+  .card-issue{font-size:14px;font-weight:500;line-height:1.5;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+  /* AI suggested solution box */
+  .ai-suggested-box{background:rgba(184,122,232,0.08);border:1px solid rgba(184,122,232,0.3);border-radius:8px;padding:10px 12px;margin-bottom:8px;}
+  .ai-box-label{font-size:10px;color:var(--ai);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:4px;}
+  .ai-box-text{font-size:12px;color:var(--text);line-height:1.5;}
+
+  /* Best student solution box */
+  .best-student-box{background:rgba(122,232,168,0.06);border:1px solid rgba(122,232,168,0.25);border-radius:8px;padding:10px 12px;margin-bottom:12px;}
+  .best-box-label{font-size:10px;color:var(--low);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:4px;}
+  .best-box-text{font-size:12px;color:var(--text);line-height:1.5;}
+  .best-box-reason{font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;}
+
+  .card-meta{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
+  .meta-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);}
+  .card-footer{display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border);}
+  .reporter{display:flex;align-items:center;gap:7px;}
+  .avatar{width:26px;height:26px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--accent);}
+  .reporter-name{font-size:12px;font-weight:500;}
+  .reporter-email{font-size:10px;color:var(--muted);}
+  .freq-badge{font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;color:var(--accent);font-weight:600;}
+
+  .card-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface2);}
+  .btn{flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all 0.15s;font-weight:500;}
+  .btn:hover{background:var(--surface);color:var(--text);}
+  .btn-primary{background:var(--accent);color:#0f0f0f;border-color:var(--accent);font-weight:600;}
+  .btn-primary:hover{opacity:0.85;}
+  .btn-resolve{background:rgba(122,232,168,0.12);color:var(--low);border-color:rgba(122,232,168,0.3);font-weight:600;}
+  .btn-resolve:hover{background:rgba(122,232,168,0.22);}
+
+  /* Lightbox */
+  .lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:24px;}
+  .lightbox.open{display:flex;}
+  .lightbox img{max-width:90vw;max-height:75vh;border-radius:10px;border:1px solid var(--border);}
+  .lightbox-close{position:absolute;top:20px;right:24px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .lightbox-caption{color:var(--muted);font-size:13px;text-align:center;}
+
+  /* Modals */
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:998;align-items:center;justify-content:center;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:420px;max-width:90vw;max-height:90vh;overflow-y:auto;}
+  .modal h3{font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:16px;color:var(--accent);}
+  .modal h3.green{color:var(--low);}
+  .modal .subtitle{font-size:12px;color:var(--muted);margin-top:-10px;margin-bottom:16px;}
+  .modal label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:14px;}
+  .modal input,.modal select,.modal textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 12px;outline:none;}
+  .modal textarea{height:80px;resize:vertical;}
+  .modal-actions{display:flex;gap:10px;margin-top:20px;}
+
+  /* Solutions Panel */
+  .solutions-panel{display:none;position:fixed;right:0;top:0;bottom:0;width:420px;background:var(--surface);border-left:1px solid var(--border);z-index:997;overflow-y:auto;flex-direction:column;}
+  .solutions-panel.open{display:flex;}
+  .panel-header{padding:20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);}
+  .panel-title{font-family:'DM Serif Display',serif;font-size:18px;color:var(--accent);}
+  .panel-close{background:none;border:1px solid var(--border);color:var(--text);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;}
+  .panel-body{padding:20px;flex:1;}
+
+  .resolution-proof-card{background:rgba(122,232,168,0.06);border:1px solid rgba(122,232,168,0.25);border-radius:8px;padding:14px;margin-bottom:16px;}
+  .resolution-proof-label{font-size:11px;color:var(--low);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:8px;}
+  .resolution-proof-card img{width:100%;border-radius:6px;margin-top:8px;max-height:200px;object-fit:cover;}
+
+  .solution-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;}
+  .solution-card.ai-best{border-color:rgba(184,122,232,0.5);background:rgba(184,122,232,0.05);}
+  .solution-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .solution-name{font-size:13px;font-weight:500;}
+  .solution-time{font-size:11px;color:var(--muted);}
+  .solution-text{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:10px;}
+  .solution-tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .tag{font-size:10px;padding:2px 8px;border-radius:20px;}
+  .tag-reward{background:rgba(232,201,122,0.15);color:var(--accent);border:1px solid rgba(232,201,122,0.3);}
+  .tag-unique{background:rgba(122,232,168,0.15);color:var(--low);border:1px solid rgba(122,232,168,0.3);}
+  .tag-ai{background:rgba(184,122,232,0.15);color:var(--ai);border:1px solid rgba(184,122,232,0.3);}
+  .ai-score-bar{height:4px;border-radius:2px;background:var(--border);margin-top:8px;overflow:hidden;}
+  .ai-score-fill{height:100%;background:var(--ai);border-radius:2px;transition:width 0.6s ease;}
+  .mark-unique-btn{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;margin-top:8px;transition:all 0.15s;}
+  .mark-unique-btn:hover{border-color:var(--low);color:var(--low);}
+
+  .empty-state{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted);}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 20px;font-size:13px;color:var(--text);z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">IRIS <span>Club Dashboard</span></div>
+  <div class="header-stats">
+    <div class="hstat"><div class="hstat-val" id="stat-total">—</div><div class="hstat-lbl">Total</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-open" style="color:var(--critical)">—</div><div class="hstat-lbl">Open</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-progress" style="color:var(--medium)">—</div><div class="hstat-lbl">In Progress</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-resolved" style="color:var(--low)">—</div><div class="hstat-lbl">Resolved</div></div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <span class="filter-label">Severity</span>
+  <button class="filter-btn sev-filter active" onclick="filterSeverity('all',this)">All</button>
+  <button class="filter-btn sev-filter" onclick="filterSeverity('Critical',this)" style="color:var(--critical)">Critical</button>
+  <button class="filter-btn sev-filter" onclick="filterSeverity('High',this)" style="color:var(--high)">High</button>
+  <button class="filter-btn sev-filter" onclick="filterSeverity('Medium',this)" style="color:var(--medium)">Medium</button>
+  <button class="filter-btn sev-filter" onclick="filterSeverity('Low',this)" style="color:var(--low)">Low</button>
+  <span class="filter-label" style="margin-left:8px;">Category</span>
+  <button class="filter-btn cat-filter active" onclick="filterCategory('all',this)">All</button>
+  <button class="filter-btn cat-filter" onclick="filterCategory('Infrastructure',this)">🏗 Infra</button>
+  <button class="filter-btn cat-filter" onclick="filterCategory('Hygiene',this)">🧹 Hygiene</button>
+  <button class="filter-btn cat-filter" onclick="filterCategory('Technology',this)">💻 Tech</button>
+  <button class="filter-btn cat-filter" onclick="filterCategory('Safety',this)">⚠ Safety</button>
+  <button class="filter-btn cat-filter" onclick="filterCategory('Admin',this)">📋 Admin</button>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input type="text" placeholder="Search issues, place..." oninput="searchIssues(this.value)">
+  </div>
+</div>
+
+<div class="grid" id="issue-grid">
+  <div class="loading"><div class="spinner"></div>Loading issues...</div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="Evidence">
+  <div class="lightbox-caption" id="lightbox-caption"></div>
+</div>
+
+<!-- Status Modal -->
+<div class="modal-bg" id="modal-bg" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>Update Issue Status</h3>
+    <label>New Status</label>
+    <select id="modal-status">
+      <option value="open">Open</option>
+      <option value="in_progress">In Progress</option>
+      <option value="resolved">Resolved</option>
+    </select>
+    <label>Club Note</label>
+    <textarea id="modal-note" placeholder="Add a note..."></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveStatus()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Resolve Modal -->
+<div class="modal-bg" id="resolve-modal-bg" onclick="closeResolveModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 class="green">✓ Mark as Resolved</h3>
+    <p class="subtitle">Upload proof that the issue has been fixed</p>
+    <label>Resolved By</label>
+    <input type="text" id="resolve-by" placeholder="Your name / club member name">
+    <label>Resolution Note</label>
+    <textarea id="resolve-note" placeholder="Describe how the issue was resolved..."></textarea>
+    <label>Proof Image (Google Drive link — optional)</label>
+    <input type="text" id="resolve-media" placeholder="https://drive.google.com/file/d/...">
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">
+      Make sure the Drive file is set to "Anyone with the link can view"
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeResolveModal()">Cancel</button>
+      <button class="btn btn-resolve" onclick="submitResolution()">Submit Proof</button>
+    </div>
+  </div>
+</div>
+
+<!-- Solutions Panel -->
+<div class="solutions-panel" id="solutions-panel">
+  <div class="panel-header">
+    <div class="panel-title">Solutions</div>
+    <button class="panel-close" onclick="closeSolutions()">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:5000/api';
+let allIssues     = [];
+let filtered      = [];
+let activeIssueId = null;
+let activeSev     = 'all';
+let activeCat     = 'all';
+let activeSearch  = '';
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+}
+
+function categoryIcon(cat) {
+  return {Infrastructure:'🏗',Hygiene:'🧹',Technology:'💻',Safety:'⚠',Admin:'📋'}[cat] || '📌';
+}
+
+function convertDriveUrl(url) {
+  if (!url) return null;
+  if (url.includes('drive.google.com')) {
+    const m = url.match(/id=([a-zA-Z0-9_-]+)/);
+    if (!m) {
+      const m2 = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (m2) return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w800`;
+    }
+    if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w800`;
+  }
+  return url;
+}
+
+// ── Stats ──
+async function loadStats() {
+  try {
+    const res  = await fetch(`${API}/stats?t=${Date.now()}`);
+    const data = await res.json();
+    if (data.success) {
+      const s = data.stats;
+      document.getElementById('stat-total').textContent    = s.total;
+      document.getElementById('stat-open').textContent     = s.open;
+      document.getElementById('stat-progress').textContent = s.in_progress;
+      document.getElementById('stat-resolved').textContent = s.resolved;
+    }
+  } catch(e) {}
+}
+
+// ── Issues ──
+async function loadIssues() {
+  try {
+    const res  = await fetch(`${API}/issues?t=${Date.now()}`);
+    const data = await res.json();
+    if (data.success) {
+      allIssues = data.issues;
+      filtered  = [...allIssues];
+      renderCards();
+      loadStats();
+    } else { showError(data.error); }
+  } catch(e) {
+    showError('Cannot connect to api.py. Make sure it is running on port 5000.');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('issue-grid').innerHTML = `
+    <div class="empty-state">
+      <div style="font-size:32px;margin-bottom:12px">⚠</div>
+      <p style="color:var(--critical);margin-bottom:8px">Connection Error</p>
+      <p style="font-size:12px;max-width:300px;margin:0 auto">${msg}</p>
+      <button class="btn" style="margin-top:16px;max-width:160px" onclick="loadIssues()">Retry</button>
+    </div>`;
+}
+
+function renderCards() {
+  const grid = document.getElementById('issue-grid');
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:12px">◎</div><p>No issues match your filter.</p></div>';
+    return;
+  }
+  grid.innerHTML = '';
+  filtered.forEach((issue, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = (idx * 0.05) + 's';
+
+    const mediaHTML = issue.media_url
+      ? `<div class="card-media" onclick="openLightbox('${issue.media_url}','${issue.place}')">
+           <img src="${issue.media_url}" alt="Evidence"
+             onerror="this.parentElement.innerHTML='<div class=\\'no-media\\'><div class=\\'no-media-icon\\'>⚠</div><span>Image unavailable</span></div>'">
+           <div class="media-overlay">📷 View evidence</div>
+           ${issue.ai_category ? `<div class="ai-cat-badge">${categoryIcon(issue.ai_category)} ${issue.ai_category}</div>` : ''}
+         </div>`
+      : `<div class="card-media" style="cursor:default">
+           <div class="no-media">
+             <div class="no-media-icon">◻</div>
+             <span>No media attached</span>
+             ${issue.ai_category ? `<span style="font-size:11px;color:var(--ai);margin-top:2px">${categoryIcon(issue.ai_category)} ${issue.ai_category}</span>` : ''}
+           </div>
+         </div>`;
+
+    // AI suggested solution box (AI's own answer)
+    const aiSugBox = issue.ai_suggested_solution
+      ? `<div class="ai-suggested-box">
+           <div class="ai-box-label">🤖 AI suggested solution</div>
+           <div class="ai-box-text">${issue.ai_suggested_solution}</div>
+         </div>`
+      : '';
+
+    // Best student solution box (picked by AI from submissions)
+    const bestStudentBox = issue.ai_best_solution
+      ? `<div class="best-student-box">
+           <div class="best-box-label">⭐ Best student solution (AI picked)</div>
+           <div class="best-box-text">${issue.ai_best_solution}</div>
+           ${issue.ai_reason ? `<div class="best-box-reason">${issue.ai_reason}</div>` : ''}
+         </div>`
+      : '';
+
+    card.innerHTML = `
+      ${mediaHTML}
+      <div class="card-body">
+        <div class="card-top">
+          <span class="severity-badge sev-${issue.severity_level}">${issue.severity_level}</span>
+          <div class="status-dot">
+            <div class="dot dot-${issue.status}"></div>
+            ${issue.status.replace('_',' ')}
+          </div>
+        </div>
+        <div class="card-place">📍 ${issue.place}</div>
+        <div class="card-issue">${issue.representative_issue}</div>
+        ${aiSugBox}
+        ${bestStudentBox}
+        <div class="card-meta">
+          <div class="meta-item">⏱ ${issue.issue_duration}</div>
+          <div class="meta-item">📅 ${issue.days_open} days open</div>
+          <div class="meta-item">👥 ${issue.frequency} reports</div>
+        </div>
+        <div class="card-footer">
+          <div class="reporter">
+            <div class="avatar">${getInitials(issue.first_raiser_name)}</div>
+            <div>
+              <div class="reporter-name">${issue.first_raiser_name || 'Anonymous'}</div>
+              <div class="reporter-email">${issue.first_raiser_email || ''}</div>
+            </div>
+          </div>
+          <div class="freq-badge">${issue.frequency}× reported</div>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="btn" onclick="viewSolutions(${issue.id})">Solutions (${issue.total_solutions || 0})</button>
+        <button class="btn btn-resolve" onclick="openResolveModal(${issue.id})">✓ Resolve</button>
+        <button class="btn btn-primary" onclick="openModal(${issue.id},'${issue.status}')">Status</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ── Filters ──
+function applyFilters() {
+  filtered = allIssues.filter(i => {
+    const mSev  = activeSev  === 'all' || i.severity_level === activeSev;
+    const mCat  = activeCat  === 'all' || i.ai_category    === activeCat;
+    const mSrch = activeSearch === '' ||
+      i.representative_issue.toLowerCase().includes(activeSearch.toLowerCase()) ||
+      (i.place || '').toLowerCase().includes(activeSearch.toLowerCase());
+    return mSev && mCat && mSrch;
+  });
+  renderCards();
+}
+
+function filterSeverity(sev, btn) {
+  activeSev = sev;
+  document.querySelectorAll('.sev-filter').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function filterCategory(cat, btn) {
+  activeCat = cat;
+  document.querySelectorAll('.cat-filter').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function searchIssues(val) { activeSearch = val; applyFilters(); }
+
+// ── Lightbox ──
+function openLightbox(url, place) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox-caption').textContent = 'Evidence — ' + place;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+// ── Status Modal ──
+function openModal(id, status) {
+  activeIssueId = id;
+  document.getElementById('modal-status').value = status;
+  document.getElementById('modal-note').value   = '';
+  document.getElementById('modal-bg').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+
+async function saveStatus() {
+  const status = document.getElementById('modal-status').value;
+  const note   = document.getElementById('modal-note').value;
+  try {
+    const res  = await fetch(`${API}/issues/${activeIssueId}/status`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({status, note, action_by:'club'})
+    });
+    const data = await res.json();
+    if (data.success) { closeModal(); showToast('Status updated!'); loadIssues(); }
+    else showToast('Error: ' + data.error);
+  } catch(e) { showToast('API not reachable'); }
+}
+
+// ── Resolve Modal ──
+function openResolveModal(id) {
+  activeIssueId = id;
+  document.getElementById('resolve-by').value    = '';
+  document.getElementById('resolve-note').value  = '';
+  document.getElementById('resolve-media').value = '';
+  document.getElementById('resolve-modal-bg').classList.add('open');
+}
+function closeResolveModal() {
+  document.getElementById('resolve-modal-bg').classList.remove('open');
+}
+
+async function submitResolution() {
+  const resolved_by     = document.getElementById('resolve-by').value.trim();
+  const resolution_note = document.getElementById('resolve-note').value.trim();
+  let   proof_url       = document.getElementById('resolve-media').value.trim();
+
+  if (!resolved_by) { showToast('Please enter your name'); return; }
+  if (!resolution_note) { showToast('Please enter a resolution note'); return; }
+
+  // Convert Drive URL to thumbnail format
+  if (proof_url) proof_url = convertDriveUrl(proof_url);
+
+  try {
+    const res  = await fetch(`${API}/issues/${activeIssueId}/resolve`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        resolved_by,
+        resolution_note,
+        proof_media_url: proof_url || ''
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeResolveModal();
+      showToast('Resolution proof submitted! Issue marked as resolved.');
+      loadIssues();
+    } else {
+      showToast('Error: ' + data.error);
+    }
+  } catch(e) {
+    showToast('API not reachable — is api.py running?');
+  }
+}
+
+// ── Solutions Panel ──
+async function viewSolutions(issueId) {
+  activeIssueId = issueId;
+  document.getElementById('solutions-panel').classList.add('open');
+  document.getElementById('panel-body').innerHTML =
+    '<div class="loading"><div class="spinner"></div>Loading...</div>';
+
+  try {
+    const [solRes, resRes] = await Promise.all([
+      fetch(`${API}/issues/${issueId}/solutions`),
+      fetch(`${API}/issues/${issueId}/resolution`)
+    ]);
+    const solData = await solRes.json();
+    const resData = await resRes.json();
+    let html = '';
+
+    // Resolution proof
+    if (resData.success && resData.records && resData.records.length) {
+      const r = resData.records[0];
+      html += `<div class="resolution-proof-card">
+        <div class="resolution-proof-label">✓ Resolution Proof</div>
+        <div style="font-size:13px;font-weight:500">${r.resolved_by}</div>
+        <div style="font-size:12px;color:var(--text);margin-top:4px">${r.resolution_note}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${new Date(r.resolved_at).toLocaleDateString()}</div>
+        ${r.proof_media_url ? `<img src="${r.proof_media_url}" alt="Resolution proof" onerror="this.style.display='none'">` : ''}
+      </div>`;
+    }
+
+    if (!solData.success || !solData.solutions || !solData.solutions.length) {
+      html += '<div class="empty-state"><p>No solutions submitted yet.</p></div>';
+    } else {
+      html += solData.solutions.map(s => `
+        <div class="solution-card ${s.ai_selected ? 'ai-best' : ''}">
+          <div class="solution-meta">
+            <div class="solution-name">${s.submitter_name || 'Anonymous'}</div>
+            <div class="solution-time">${new Date(s.submitted_at).toLocaleDateString()}</div>
+          </div>
+          <div class="solution-text">${s.solution_text}</div>
+          <div class="solution-tags">
+            ${s.ai_selected  ? '<span class="tag tag-ai">🤖 AI Best Pick</span>'         : ''}
+            ${s.is_unique    ? '<span class="tag tag-unique">⭐ Unique</span>'            : ''}
+            ${s.wants_reward ? '<span class="tag tag-reward">🏆 Reward contestant</span>' : ''}
+          </div>
+          ${s.ai_score ? `
+            <div class="ai-score-bar" style="margin-top:8px">
+              <div class="ai-score-fill" style="width:${s.ai_score * 10}%"></div>
+            </div>
+            <div style="font-size:10px;color:var(--ai);margin-top:3px">AI Score: ${s.ai_score}/10</div>
+          ` : ''}
+          ${!s.is_unique ? `<button class="mark-unique-btn" onclick="markUnique(${s.id})">Mark as unique</button>` : ''}
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('panel-body').innerHTML = html;
+  } catch(e) {
+    document.getElementById('panel-body').innerHTML =
+      '<div class="empty-state"><p style="color:var(--critical)">Failed to load solutions.</p></div>';
+  }
+}
+
+function closeSolutions() {
+  document.getElementById('solutions-panel').classList.remove('open');
+}
+
+async function markUnique(solutionId) {
+  try {
+    const res  = await fetch(`${API}/solutions/${solutionId}/mark-unique`, {method:'POST'});
+    const data = await res.json();
+    if (data.success) { showToast('Marked as unique!'); viewSolutions(activeIssueId); }
+  } catch(e) { showToast('API not reachable'); }
+}
+
+// ── Auto refresh every 30s ──
+setInterval(loadIssues, 30000);
+
+// ── Init ──
+loadIssues();
+</script>
+</body>
+</html>
