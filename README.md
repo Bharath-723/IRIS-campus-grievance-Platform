@@ -127,13 +127,6 @@ Key settings in `sync.py`:
 4. Push to branch (`git push origin feature/YourFeature`)
 5. Open a Pull Request
 
-## ⚠️ Security Notes
-
-- **Never commit** `credentials.json` — already in `.gitignore`
-- **Never hardcode** API keys — use environment variables in production
-- Keep `.venv/` out of version control
-- Regularly rotate Google API credentials
-
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) file for details.
