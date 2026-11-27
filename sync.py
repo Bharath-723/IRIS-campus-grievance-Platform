@@ -156,8 +156,8 @@ Rules:
 # ─── GOOGLE SHEETS HELPER ─────────────────────────────────────────────────────
 def get_sheet():
     scopes = [
-        "https://www.googleapis.com/auth/spreadsheets.readonly",
-        "https://www.googleapis.com/auth/drive.readonly"
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
     ]
     raw_creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
     if raw_creds_json:

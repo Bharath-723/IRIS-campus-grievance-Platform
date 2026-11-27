@@ -3,8 +3,13 @@ Export existing responses from MS SQL Server (studentdb) to your new Google Shee
 Run this script if you want all 25 previous student responses from MS SQL Server
 to appear directly in your Google Sheet.
 """
+import os
 import pyodbc
-from sync import get_sheet
+import gspread
+from google.oauth2.service_account import Credentials
+from dotenv import load_dotenv
+
+load_dotenv()
 
 MSSQL_CONFIG = (
     "DRIVER={SQL Server};"
@@ -12,6 +17,18 @@ MSSQL_CONFIG = (
     "DATABASE=studentdb;"
     "Trusted_Connection=yes;"
 )
+
+SHEET_ID    = os.getenv("SHEET_ID")
+CREDENTIALS = os.getenv("CREDENTIALS_FILE", "credentials.json")
+
+def get_write_sheet():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = Credentials.from_service_account_file(CREDENTIALS, scopes=scopes)
+    client = gspread.authorize(creds)
+    return client.open_by_key(SHEET_ID).sheet1
 
 def export_to_sheet():
     print("=" * 60)
@@ -40,7 +57,7 @@ def export_to_sheet():
 
     print("\n[2/3] Connecting to Google Sheet...")
     try:
-        sheet = get_sheet()
+        sheet = get_write_sheet()
         print(f"  ✓ Connected to sheet: '{sheet.title}'")
     except Exception as e:
         print(f"  ❌ Could not connect to Google Sheet: {e}")
