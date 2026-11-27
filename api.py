@@ -52,11 +52,21 @@ def get_svg_placeholder(text="Evidence Attached"):
     </svg>"""
 
 
+FRONTEND_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
+
 # ── Serve Dashboard ──
 @app.route('/', methods=['GET'])
 @app.route('/dashboard', methods=['GET'])
 def serve_dashboard():
+    if os.path.exists(os.path.join(FRONTEND_DIST, 'index.html')):
+        return send_from_directory(FRONTEND_DIST, 'index.html')
     return send_from_directory('.', 'index.html')
+
+@app.route('/assets/<path:path>', methods=['GET'])
+def serve_assets(path):
+    if os.path.exists(os.path.join(FRONTEND_DIST, 'assets')):
+        return send_from_directory(os.path.join(FRONTEND_DIST, 'assets'), path)
+    return ('Not found', 404)
 
 
 # ── Proxy Google Drive Images ──
