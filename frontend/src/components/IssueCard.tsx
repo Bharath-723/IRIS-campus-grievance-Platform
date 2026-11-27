@@ -23,10 +23,65 @@ function getCategoryIcon(cat?: string): string {
 }
 
 function getInitials(name?: string): string {
-  if (!name) return 'AS';
+  if (!name) return 'AP';
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function getReporterDisplay(name?: string, email?: string) {
+  const cleanName = (name || '').trim();
+  const rawEmail = (email || '').trim();
+
+  const isAnonymousName =
+    !cleanName ||
+    cleanName.toLowerCase() === 'anonymous' ||
+    cleanName.toLowerCase() === 'anonymous student' ||
+    cleanName.toLowerCase() === 'anonymous person' ||
+    cleanName.toLowerCase() === 'none';
+
+  const isFakeEmail =
+    !rawEmail ||
+    rawEmail.toLowerCase() === 'none' ||
+    rawEmail.endsWith('@campus.local') ||
+    rawEmail.toLowerCase().includes('anonymous') ||
+    rawEmail.toLowerCase() === cleanName.toLowerCase();
+
+  const realEmail = isFakeEmail ? null : rawEmail;
+
+  // Case 1: Neither name nor real email provided -> "Anonymous Person"
+  if (isAnonymousName && !realEmail) {
+    return {
+      initials: 'AP',
+      name: 'Anonymous Person',
+      email: null,
+    };
+  }
+
+  // Case 2: Only email provided (no name) -> display email only
+  if (isAnonymousName && realEmail) {
+    return {
+      initials: realEmail.slice(0, 2).toUpperCase(),
+      name: realEmail,
+      email: null,
+    };
+  }
+
+  // Case 3: Name provided, email missing or fake -> display name only
+  if (!isAnonymousName && !realEmail) {
+    return {
+      initials: getInitials(cleanName),
+      name: cleanName,
+      email: null,
+    };
+  }
+
+  // Case 4: Both name and email provided -> display name and email
+  return {
+    initials: getInitials(cleanName),
+    name: cleanName,
+    email: realEmail,
+  };
 }
 
 export const IssueCard: React.FC<IssueCardProps> = ({
@@ -39,6 +94,7 @@ export const IssueCard: React.FC<IssueCardProps> = ({
   const sevKey = (issue.severity_level || 'low').toLowerCase();
   const statusKey = (issue.status || 'open').toLowerCase().replace(' ', '_');
   const imageUrl = getImageUrl(issue.media_url);
+  const reporter = getReporterDisplay(issue.first_raiser_name, issue.first_raiser_email);
 
   return (
     <div className="card">
@@ -111,10 +167,12 @@ export const IssueCard: React.FC<IssueCardProps> = ({
 
         <div className="card-footer">
           <div className="reporter">
-            <div className="avatar">{getInitials(issue.first_raiser_name)}</div>
+            <div className="avatar">{reporter.initials}</div>
             <div>
-              <div className="reporter-name">{issue.first_raiser_name || 'Anonymous'}</div>
-              <div className="reporter-email">{issue.first_raiser_email || ''}</div>
+              <div className="reporter-name">{reporter.name}</div>
+              {reporter.email && (
+                <div className="reporter-email">{reporter.email}</div>
+              )}
             </div>
           </div>
           <div className="freq-badge">{issue.frequency || 1}× reported</div>

@@ -49,11 +49,40 @@ def gemini_ask(prompt):
         return None
 
 
+def categorize_by_rules(text, place=''):
+    t = f"{text} {place}".lower()
+    
+    # 1. Hygiene & Cleanliness
+    hygiene_kw = ['clean', 'cleaning', 'cleanliness', 'dirty', 'dust', 'dusty', 'floor', 'sweep', 'trash', 'garbage', 'litter', 'waste', 'washroom', 'toilet', 'restroom', 'smell', 'stink', 'hygiene', 'sanitize', 'mop', 'pest', 'cockroach', 'rat', 'bins', 'dustbin']
+    if any(k in t for k in hygiene_kw):
+        return 'Hygiene', 7, 'Dispatch housekeeping staff immediately for thorough cleaning and sanitation.'
+        
+    # 2. Safety & Electrical Hazards
+    safety_kw = ['shock', 'electric', 'electricity', 'wire', 'wires', 'fire', 'hazard', 'hazardous', 'spark', 'broken glass', 'danger', 'dangerous', 'injury', 'emergency', 'security', 'guard', 'lock', 'theft', 'stolen', 'cctv', 'ragging', 'harass', 'dark', 'lighting']
+    if any(k in t for k in safety_kw):
+        return 'Safety', 9, 'Urgently dispatch maintenance/electrician to inspect and neutralize safety hazards.'
+        
+    # 3. Technology & IT
+    tech_kw = ['wifi', 'wi-fi', 'internet', 'network', 'computer', 'pc', 'system', 'lab', 'projector', 'speaker', 'speakers', 'mic', 'microphone', 'audio', 'software', 'screen', 'monitor', 'mouse', 'keyboard', 'login', 'portal', 'server', 'tech', 'printer', 'broadband']
+    if any(k in t for k in tech_kw):
+        return 'Technology', 7, 'Assign to IT Support / lab technician to repair hardware or restore connectivity.'
+        
+    # 4. Admin, Fees & Canteen / College Policies
+    admin_kw = ['price', 'prices', 'cost', 'expensive', 'canteen food', 'food quality', 'taste', 'fee', 'fees', 'billing', 'tokens', 'receipt', 'id card', 'timing', 'timings', 'library', 'schedule', 'exam', 'faculty', 'staff', 'professor', 'teacher', 'attendance', 'rule', 'rules', 'policy', 'admin', 'administration', 'competitor', 'competitors', 'good college', 'college']
+    if any(k in t for k in admin_kw):
+        return 'Admin', 5, 'Forward grievance to administrative committee / campus management for policy review.'
+        
+    # 5. Infrastructure & Facilities (Default fallback)
+    return 'Infrastructure', 6, 'Schedule physical inspection and repair with the facilities maintenance team.'
+
+
 def ai_analyze_issue(issue_text, place):
     """
     Returns: category, priority_score, ai_suggested_solution
-    AI generates its OWN solution + picks category + scores priority.
+    Uses Gemini AI if available; otherwise falls back to smart rule-based categorizer.
     """
+    cat_rule, score_rule, sol_rule = categorize_by_rules(issue_text, place)
+
     prompt = f"""You are an AI assistant for a college campus issue management system.
 
 Analyze this campus issue and respond ONLY with a valid JSON object, no markdown, no extra text:
@@ -63,9 +92,9 @@ Location: "{place}"
 
 JSON format (strictly follow this):
 {{
-  "category": "Infrastructure",
-  "priority_score": 8,
-  "ai_suggested_solution": "Contact the electrical department to inspect and replace faulty wiring within 24 hours."
+  "category": "{cat_rule}",
+  "priority_score": {score_rule},
+  "ai_suggested_solution": "{sol_rule}"
 }}
 
 Rules:
@@ -76,7 +105,8 @@ Rules:
 
     response = gemini_ask(prompt)
     if not response:
-        return "Infrastructure", 5, "Refer to facilities management for immediate inspection."
+        print(f"     → [Rule Categorizer] [{cat_rule}] Priority:{score_rule}/10 | Solution: {sol_rule[:60]}...")
+        return cat_rule, score_rule, sol_rule
     try:
         clean = response.replace("```json", "").replace("```", "").strip()
         start = clean.find("{")
@@ -84,16 +114,16 @@ Rules:
         if start >= 0 and end > start:
             clean = clean[start:end]
         data  = json.loads(clean)
-        cat   = data.get("category", "Infrastructure")
+        cat   = data.get("category", cat_rule)
         if cat not in ["Infrastructure", "Hygiene", "Technology", "Safety", "Admin"]:
-            cat = "Infrastructure"
-        score = min(10, max(1, int(data.get("priority_score", 5))))
-        sol   = data.get("ai_suggested_solution", "Refer to facilities management for inspection.")
+            cat = cat_rule
+        score = min(10, max(1, int(data.get("priority_score", score_rule))))
+        sol   = data.get("ai_suggested_solution", sol_rule)
         print(f"     → [{cat}] Priority:{score}/10 | AI solution: {sol[:60]}...")
         return cat, score, sol
     except Exception as e:
-        print(f"  ⚠ Gemini parse error: {e} | raw: {response[:100]}")
-        return "Infrastructure", 5, "Refer to facilities management for immediate inspection."
+        print(f"  ⚠ Gemini parse error: {e} | using rule-based categorization")
+        return cat_rule, score_rule, sol_rule
 
 
 def ai_pick_best_solution(issue_text, solutions):
@@ -199,11 +229,11 @@ def make_hash(text):
     return hashlib.sha256(normalize(text).encode()).hexdigest()
 
 
-def already_synced(cursor, submitted_at, email):
+def already_synced(cursor, submitted_at, text_hash):
     cursor.execute("""
         SELECT COUNT(*) FROM raw_submissions
-        WHERE submitted_at = %s AND email = %s
-    """, (submitted_at, email))
+        WHERE submitted_at = %s AND text_hash = %s
+    """, (submitted_at, text_hash))
     return cursor.fetchone()[0] > 0
 
 
@@ -275,7 +305,7 @@ def insert_submission(cursor, row, col_map=None):
         return None
 
     timestamp  = val("timestamp", 0)
-    name       = val("name", 1) or "Anonymous Student"
+    name       = val("name", 1)
     email      = val("email", 2)
     location   = val("location", 3)
     others     = val("others", 4)
@@ -290,20 +320,15 @@ def insert_submission(cursor, row, col_map=None):
         print("  ⚠ Skipping row — missing issue description.")
         return False
 
-    # Handle missing email gracefully
-    if not email:
-        email = f"student_{abs(hash(issue)) % 100000}@campus.local"
-
     place        = others if (not location or location.lower() == 'other') and others else (location or "Campus")
     wants_reward = (str(reward_raw or "").strip().lower() == "yes")
     media_url    = convert_drive_url(proof)
     submitted_at = parse_timestamp(timestamp) if timestamp else datetime.now()
+    text_hash    = make_hash(issue)
 
-    if already_synced(cursor, submitted_at, email):
-        print(f"  ~ Already synced: {email}")
+    if already_synced(cursor, submitted_at, text_hash):
+        print(f"  ~ Already synced: {issue[:40]}")
         return False
-
-    text_hash = make_hash(issue)
 
     # Call Gemini AI
     print(f"  🤖 AI analyzing: {issue[:50]}...")
