@@ -1,41 +1,36 @@
+import os
 import gspread
 from google.oauth2.service_account import Credentials
-import pyodbc
 import hashlib
 import time
 import re
 import json
 import urllib.request
 from datetime import datetime
+from db import get_db
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
-SHEET_ID           = "1eyaSoucDJrBlCnwFtg0Q7gjD42Azu5cQ-DvsfGN_rlk"
-CREDENTIALS        = "credentials.json"
-GEMINI_API_KEY     = "AIzaSyADagnWrlJsYpd5UfMuvEIUWc6buKzIjpM"
+SHEET_ID           = os.getenv("SHEET_ID", "1eyaSoucDJrBlCnwFtg0Q7gjD42Azu5cQ-DvsfGN_rlk")
+CREDENTIALS        = os.getenv("CREDENTIALS_FILE", "credentials.json")
+GEMINI_API_KEY     = os.getenv("GEMINI_API_KEY", "AIzaSyBcUymkQ5u5iNY8Tk6Wk3Up0ju8TA-f_DU")
 GEMINI_URL         = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 )
 
-DB_CONFIG = (
-    "DRIVER={SQL Server};"
-    "SERVER=.\\SQLEXPRESS;"
-    "DATABASE=studentdb;"
-    "Trusted_Connection=yes;"
-)
-
-SYNC_INTERVAL      = 30
-MAJORITY_THRESHOLD = 3   # change to 3 for production
+SYNC_INTERVAL      = int(os.getenv("SYNC_INTERVAL", "30"))
+MAJORITY_THRESHOLD = int(os.getenv("MAJORITY_THRESHOLD", "3"))   # minimum reports to elevate an issue
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 # ─── GEMINI HELPER ────────────────────────────────────────────────────────────
-GEMINI_AVAILABLE = True  # flips False on 429, resets each sync cycle
-
 def gemini_ask(prompt):
-    global GEMINI_AVAILABLE
-    if not GEMINI_AVAILABLE:
-        return None
     payload = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}]
     }).encode("utf-8")
@@ -49,13 +44,6 @@ def gemini_ask(prompt):
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode())
             return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
-            print(f"  ⚠ Gemini rate limit hit — skipping AI this cycle, will retry next cycle.")
-            GEMINI_AVAILABLE = False
-        else:
-            print(f"  ⚠ Gemini HTTP error: {e.code}")
-        return None
     except Exception as e:
         print(f"  ⚠ Gemini error: {e}")
         return None
@@ -91,7 +79,6 @@ Rules:
         return "Infrastructure", 5, "Refer to facilities management for immediate inspection."
     try:
         clean = response.replace("```json", "").replace("```", "").strip()
-        # Handle cases where Gemini adds extra text
         start = clean.find("{")
         end   = clean.rfind("}") + 1
         if start >= 0 and end > start:
@@ -166,19 +153,20 @@ Rules:
         return solutions[0]["id"], "First submitted solution selected.", {}
 
 
-# ─── DB HELPERS ───────────────────────────────────────────────────────────────
+# ─── GOOGLE SHEETS HELPER ─────────────────────────────────────────────────────
 def get_sheet():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets.readonly",
         "https://www.googleapis.com/auth/drive.readonly"
     ]
-    creds  = Credentials.from_service_account_file(CREDENTIALS, scopes=scopes)
+    raw_creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    if raw_creds_json:
+        creds_info = json.loads(raw_creds_json)
+        creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+    else:
+        creds = Credentials.from_service_account_file(CREDENTIALS, scopes=scopes)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID).sheet1
-
-
-def get_db():
-    return pyodbc.connect(DB_CONFIG)
 
 
 def normalize(text):
@@ -197,8 +185,8 @@ def make_hash(text):
 def already_synced(cursor, submitted_at, email):
     cursor.execute("""
         SELECT COUNT(*) FROM raw_submissions
-        WHERE submitted_at = ? AND email = ?
-    """, submitted_at, email)
+        WHERE submitted_at = %s AND email = %s
+    """, (submitted_at, email))
     return cursor.fetchone()[0] > 0
 
 
@@ -245,7 +233,7 @@ def insert_submission(cursor, row):
         return False
 
     place        = others if not location else location
-    wants_reward = 1 if str(reward_raw or "").strip().lower() == "yes" else 0
+    wants_reward = (str(reward_raw or "").strip().lower() == "yes")
     media_url    = convert_drive_url(proof)
     submitted_at = parse_timestamp(timestamp) if timestamp else datetime.now()
 
@@ -255,7 +243,7 @@ def insert_submission(cursor, row):
 
     text_hash = make_hash(issue)
 
-    # ── Call Gemini AI ──
+    # Call Gemini AI
     print(f"  🤖 AI analyzing: {issue[:50]}...")
     category, priority, ai_solution = ai_analyze_issue(
         issue, place or "Campus"
@@ -266,19 +254,19 @@ def insert_submission(cursor, row):
             (full_name, email, place, issue, severity_level,
              issue_duration, media_url, solution, wants_reward,
              text_hash, submitted_at, ai_category)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, name, email, place, issue, severity,
-         duration, media_url, solution, wants_reward,
-         text_hash, submitted_at, category)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (name, email, place, issue, severity,
+          duration, media_url, solution, wants_reward,
+          text_hash, submitted_at, category))
 
     print(f"  + Inserted: [{severity}|{category}] {issue[:40]}... by {email}")
     return True
 
 
 def mark_duplicates(cursor):
-    cursor.execute("UPDATE raw_submissions SET is_duplicate = 0")
+    cursor.execute("UPDATE raw_submissions SET is_duplicate = FALSE")
     cursor.execute("""
-        UPDATE raw_submissions SET is_duplicate = 1
+        UPDATE raw_submissions SET is_duplicate = TRUE
         WHERE id NOT IN (
             SELECT MIN(id) FROM raw_submissions GROUP BY text_hash
         )
@@ -294,7 +282,7 @@ def run_majority_filter(cursor):
              media_url, ai_category)
         SELECT
             rs.place,
-            CAST(rs.issue AS VARCHAR(MAX)),
+            rs.issue,
             MAX(rs.severity_level),
             MAX(rs.issue_duration),
             COUNT(*),
@@ -308,18 +296,16 @@ def run_majority_filter(cursor):
             FROM raw_submissions GROUP BY text_hash
         ) first_row ON rs.text_hash = first_row.text_hash
         JOIN raw_submissions first_rs ON first_rs.id = first_row.min_id
-        WHERE rs.is_duplicate = 0
-        GROUP BY rs.text_hash, rs.place,
-                 CAST(rs.issue AS VARCHAR(MAX)),
+        WHERE rs.is_duplicate = FALSE
+        GROUP BY rs.text_hash, rs.place, rs.issue,
                  first_rs.full_name, first_rs.email,
                  first_rs.media_url, first_rs.ai_category
-        HAVING COUNT(*) >= ?
+        HAVING COUNT(*) >= %s
         AND NOT EXISTS (
             SELECT 1 FROM accepted_issues ai
-            WHERE CAST(ai.representative_issue AS VARCHAR(MAX))
-                = CAST(rs.issue AS VARCHAR(MAX))
+            WHERE ai.representative_issue = rs.issue
         )
-    """, MAJORITY_THRESHOLD)
+    """, (MAJORITY_THRESHOLD,))
 
 
 def sync_solutions(cursor):
@@ -328,11 +314,10 @@ def sync_solutions(cursor):
             (issue_id, submitter_name, submitter_email, solution_text, wants_reward)
         SELECT
             ai.id, rs.full_name, rs.email,
-            CAST(rs.solution AS VARCHAR(MAX)), rs.wants_reward
+            rs.solution, rs.wants_reward
         FROM raw_submissions rs
         JOIN accepted_issues ai
-            ON CAST(ai.representative_issue AS VARCHAR(MAX))
-             = CAST(rs.issue AS VARCHAR(MAX))
+            ON ai.representative_issue = rs.issue
         WHERE rs.solution IS NOT NULL AND rs.solution != ''
           AND NOT EXISTS (
               SELECT 1 FROM solutions s
@@ -353,20 +338,19 @@ def run_ai_enrichment(cursor):
 
     # ── Step 1: AI enrichment for issues missing ai_suggested_solution ──
     cursor.execute("""
-        SELECT TOP 10 id,
-               CAST(representative_issue AS VARCHAR(MAX)) AS issue,
-               place, ai_category
+        SELECT id, representative_issue AS issue, place, ai_category
         FROM accepted_issues
         WHERE ai_suggested_solution IS NULL
            OR ai_category IS NULL
            OR ai_category = 'Uncategorized'
+        LIMIT 10
     """)
     issues_to_enrich = cursor.fetchall()
 
     enriched = 0
     for issue_id, issue_text, place, existing_cat in issues_to_enrich:
         if enriched >= MAX_PER_CYCLE:
-            print(f"  ⏸ Rate limit pause — will continue next sync cycle.")
+            print("  ⏸ Rate limit pause — will continue next sync cycle.")
             break
         print(f"  🤖 AI enriching issue #{issue_id}: {issue_text[:40]}...")
         category, priority, ai_solution = ai_analyze_issue(
@@ -374,31 +358,31 @@ def run_ai_enrichment(cursor):
         )
         cursor.execute("""
             UPDATE accepted_issues
-            SET ai_category           = ?,
-                ai_priority_score     = ?,
-                ai_suggested_solution = ?
-            WHERE id = ?
-        """, category, priority, ai_solution, issue_id)
+            SET ai_category           = %s,
+                ai_priority_score     = %s,
+                ai_suggested_solution = %s
+            WHERE id = %s
+        """, (category, priority, ai_solution, issue_id))
         enriched += 1
-        time.sleep(AI_DELAY)   # wait 5s between calls → max 12/min safely
+        time.sleep(AI_DELAY)   # wait 5s between calls
 
     # ── Step 2: Pick best student solution for issues not yet evaluated ──
     cursor.execute("""
-        SELECT TOP 5 id, CAST(representative_issue AS VARCHAR(MAX)) AS issue
+        SELECT id, representative_issue AS issue
         FROM accepted_issues
         WHERE ai_best_solution_id IS NULL
+        LIMIT 5
     """)
     issues_for_picker = cursor.fetchall()
 
     for issue_id, issue_text in issues_for_picker:
         cursor.execute("""
-            SELECT id, submitter_name,
-                   CAST(solution_text AS VARCHAR(MAX)) AS solution_text
+            SELECT id, submitter_name, solution_text
             FROM solutions
-            WHERE issue_id = ?
+            WHERE issue_id = %s
               AND solution_text IS NOT NULL
               AND solution_text != ''
-        """, issue_id)
+        """, (issue_id,))
         rows = cursor.fetchall()
         if not rows:
             continue
@@ -415,20 +399,20 @@ def run_ai_enrichment(cursor):
         for sol in solutions:
             score = int(scores.get(str(sol["id"]), scores.get(sol["id"], 5)))
             cursor.execute(
-                "UPDATE solutions SET ai_score = ?, ai_selected = 0 WHERE id = ?",
-                score, sol["id"]
+                "UPDATE solutions SET ai_score = %s, ai_selected = FALSE WHERE id = %s",
+                (score, sol["id"])
             )
 
         # Mark the AI-selected best solution
         cursor.execute(
-            "UPDATE solutions SET ai_selected = 1, is_unique = 1 WHERE id = ?",
-            best_id
+            "UPDATE solutions SET ai_selected = TRUE, is_unique = TRUE WHERE id = %s",
+            (best_id,)
         )
 
         # Get best solution text
         cursor.execute(
-            "SELECT CAST(solution_text AS VARCHAR(MAX)) FROM solutions WHERE id = ?",
-            best_id
+            "SELECT solution_text FROM solutions WHERE id = %s",
+            (best_id,)
         )
         row = cursor.fetchone()
         best_text = row[0] if row else ""
@@ -436,19 +420,17 @@ def run_ai_enrichment(cursor):
         # Save to accepted_issues
         cursor.execute("""
             UPDATE accepted_issues
-            SET ai_best_solution    = ?,
-                ai_best_solution_id = ?,
-                ai_reason           = ?
-            WHERE id = ?
-        """, best_text, best_id, reason, issue_id)
-        time.sleep(AI_DELAY)  # wait between calls
+            SET ai_best_solution    = %s,
+                ai_best_solution_id = %s,
+                ai_reason           = %s
+            WHERE id = %s
+        """, (best_text, best_id, reason, issue_id))
+        time.sleep(AI_DELAY)
 
 
 # ─── MAIN SYNC LOOP ───────────────────────────────────────────────────────────
 def sync():
-    global GEMINI_AVAILABLE
-    GEMINI_AVAILABLE = True  # reset each cycle
-    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Syncing Google Sheet → SQL Server...")
+    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Syncing Google Sheet → Supabase...")
 
     try:
         sheet = get_sheet()
@@ -502,7 +484,7 @@ def sync():
     except Exception as e:
         print(f"  ⚠ Solutions sync error: {e}")
 
-    # AI enrichment (category + AI solution + best student solution picker)
+    # AI enrichment
     try:
         run_ai_enrichment(cursor)
         print("  ✓ AI enrichment complete.")
@@ -511,13 +493,12 @@ def sync():
 
     conn.commit()
     conn.close()
-    print(f"  ✓ All done — commit successful.")
+    print("  ✓ All done — commit successful.")
 
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  IRIS — Issue Reporting & Intelligence System")
-    print("  Sync + Gemini AI Engine")
+    print("  IRIS — Supabase Sync + Gemini AI Engine")
     print(f"  Syncing every {SYNC_INTERVAL} seconds")
     print("  Press Ctrl+C to stop")
     print("=" * 50)

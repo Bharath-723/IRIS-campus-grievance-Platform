@@ -1,142 +1,80 @@
-# IRIS — Issue Reporting  & Intelligence System
+# IRIS — Campus Grievance & Crowd-Sourced Solution Platform
 
-A student club dashboard platform for issue tracking with AI-powered solutions. Members raise issues, the system analyzes them using Google Gemini, and the community votes on the best solutions.
-
-## Features
-
-- **Issue Tracking Dashboard**: Comprehensive dashboard for viewing and managing reported issues
-- **Severity-Based Prioritization**: Issues automatically sorted by severity (Critical, High, Medium, Low)
-- **AI-Powered Analysis**: Google Gemini integration for automatic issue categorization and solution suggestions
-- **Solution Management**: Community members can propose solutions with reward tracking
-- **Real-Time Sync**: Automatic synchronization with Google Sheets for collaborative data management
-- **SQL Server Integration**: Persistent data storage with SQL Server (SQLEXPRESS)
-- **REST API**: Full-featured Flask API endpoints for dashboard operations
-- **Responsive UI**: Modern dark-themed dashboard interface
-
-## Tech Stack
-
-- **Backend**: Python 3.10+ with Flask framework
-- **Frontend**: HTML5, CSS3, JavaScript
-- **Database**: SQL Server (SQLEXPRESS)
-- **AI/ML**: Google Gemini API
-- **Data Integration**: Google Sheets API (gspread)
-- **Libraries**: Flask-CORS, pyodbc, gspread, google-auth
-
-## Project Structure
-
-```
-Project-IRIS/
-├── api.py                      # Flask API server with issue endpoints
-├── sync.py                     # Google Sheets & Gemini AI sync service
-├── club_dashboard_v4.html      # Interactive dashboard UI
-├── credentials.json            # Google API credentials (⚠️ keep secret)
-├── db_queries.txt              # Database query documentation
-├── db_update.sql               # SQL Server schema updates
-└── README.md                   # This file
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.10+
-- SQL Server (SQLEXPRESS)
-- Google Cloud Project with Gemini API enabled
-- Google Sheets API credentials
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Bharath-723/project-IRIS.git
-   cd project-IRIS
-   ```
-
-2. **Create virtual environment**
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate  # Windows
-   source .venv/bin/activate  # Mac/Linux
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set up database**
-   - Update SQL Server connection string in `api.py` and `sync.py`
-   - Run `db_update.sql` to create tables
-
-5. **Configure Google APIs**
-   - Place `credentials.json` in project root
-   - Update `SHEET_ID` in `sync.py`
-
-### Running the Application
-
-**Start the API server:**
-```bash
-python api.py
-```
-Server runs on `http://localhost:5000`
-
-**Start the sync service (in another terminal):**
-```bash
-python sync.py
-```
-Automatically syncs data every 30 seconds
-
-**Open dashboard:**
-```
-http://localhost:5000/dashboard
-```
-(Open `club_dashboard_v4.html` in browser)
-
-## API Endpoints
-
-- `GET /api/issues` - Retrieve all issues with statistics
-- `POST /api/issues` - Create new issue
-- `GET /api/issues/<id>` - Get specific issue details
-- `POST /api/solutions` - Submit solution for an issue
-- `GET /api/stats` - Get dashboard statistics
-
-## Database Schema
-
-### accepted_issues
-- `id`, `place`, `representative_issue`, `severity_level`, `issue_duration`, `frequency`
-- `first_raiser_name`, `first_raiser_email`, `media_url`
-- `status`, `created_at`, `ai_category`
-- `ai_suggested_solution`, `ai_best_solution`, `ai_best_solution_id`, `ai_reason`
-
-### solutions
-- `id`, `issue_id`, `solution_text`, `proposed_by`
-- `wants_reward`, `upvote_count`, `created_at`
-
-## Configuration
-
-Key settings in `sync.py`:
-- `SYNC_INTERVAL = 30` — Data sync frequency (seconds)
-- `MAJORITY_THRESHOLD = 3` — Votes needed to approve solution
-- `GEMINI_API_KEY` — Add your API key
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/YourFeature`)
-3. Commit changes (`git commit -m 'Add YourFeature'`)
-4. Push to branch (`git push origin feature/YourFeature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License — see [LICENSE](LICENSE) file for details.
-
-## Contact
-
-**Project Lead:** Bharath-723
-
-For issues, questions, or suggestions, please open an issue on GitHub.
+IRIS is an automated grievance intelligence platform for college campuses. It captures student complaints and innovative solutions via Google Forms, eliminates noise with a majority consensus filter, enriches issues using Google Gemini 2.0 Flash AI, persists everything in **Supabase (PostgreSQL)**, and provides an interactive Club Dashboard for tracking resolutions.
 
 ---
 
-**Last Updated:** April 23, 2026
+## 📁 Project Structure
+
+```text
+IRIS-extra/
+│
+├── api.py                 # Flask REST API server & web dashboard host
+├── sync.py                # 30s Google Sheets → Supabase sync & Gemini AI worker
+├── db.py                  # Supabase PostgreSQL database connector
+├── index.html             # Administrative Club Dashboard (Single Page App)
+│
+├── supabase_schema.sql    # Complete PostgreSQL DDL for Supabase SQL Editor
+├── requirements.txt       # Python dependencies (includes psycopg2-binary)
+├── .env.example           # Environment template (Supabase DB URL, Gemini, etc.)
+├── .gitignore             # Secrets & cache exclusions
+└── README.md              # Project documentation and setup guide
+```
+
+---
+
+## ⚡ Setup Guide
+
+### 1. Supabase Database Setup
+1. Log in to [Supabase](https://supabase.com) and create a new project.
+2. In your Supabase project dashboard, open the **SQL Editor** from the left sidebar.
+3. Open `supabase_schema.sql` from this repository, copy its entire contents, paste it into the SQL Editor, and click **Run**.
+4. Go to **Project Settings** &rarr; **Database** &rarr; **Connection string** &rarr; select **URI**.
+5. Copy the connection string (format: `postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres`).
+
+### 2. Local Environment Setup
+```powershell
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 3. Configure Secrets
+Create a `.env` file based on `.env.example`:
+```powershell
+Copy-Item .env.example .env
+```
+Paste your Supabase database connection string into `SUPABASE_DB_URL` with your actual Supabase database password.
+
+### 4. Running the Platform
+Open two terminal windows:
+
+**Terminal 1 — Background Sync Worker:**
+```powershell
+python sync.py
+```
+*Monitors student Google Form submissions every 30 seconds, runs deduplication, calls Gemini AI to categorize issues, and ranks student solutions in Supabase.*
+
+**Terminal 2 — REST API & Dashboard:**
+```powershell
+python api.py
+```
+*Starts the web server at `http://localhost:5000`.*
+
+**Access the Dashboard:**
+Open `http://localhost:5000/` in your browser.
+
+---
+
+## 🌐 API Reference
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/` | Serves the Club Dashboard |
+| `GET` | `/api/stats` | Aggregated platform metrics (Total, Open, In Progress, Resolved) |
+| `GET` | `/api/issues` | All accepted issues enriched with Gemini categorization & solutions |
+| `GET` | `/api/issues/<id>/solutions` | Solutions for an issue, ranked by AI score |
+| `POST` | `/api/issues/<id>/status` | Update issue status (`open`, `in_progress`, `resolved`) |
+| `POST` | `/api/solutions/<id>/mark-unique` | Flag solution as unique for reward contests |
+| `POST` | `/api/issues/<id>/resolve` | Record resolution note and proof image |
+| `GET` | `/api/issues/<id>/resolution` | Fetch verification proof of resolved issues |
