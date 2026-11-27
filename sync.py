@@ -166,7 +166,24 @@ def get_sheet():
     else:
         creds = Credentials.from_service_account_file(CREDENTIALS, scopes=scopes)
     client = gspread.authorize(creds)
-    return client.open_by_key(SHEET_ID).sheet1
+    doc = client.open_by_key(SHEET_ID)
+
+    # 1. Custom tab from .env if defined
+    target_tab = os.getenv("SHEET_TAB_NAME")
+    if target_tab:
+        try:
+            return doc.worksheet(target_tab)
+        except Exception:
+            pass
+
+    # 2. Look for Google Form responses tab automatically
+    for ws in doc.worksheets():
+        t = ws.title.lower()
+        if "form response" in t or "form_response" in t or "responses" in t:
+            return ws
+
+    # 3. Fallback to default first sheet
+    return doc.sheet1
 
 
 def normalize(text):
@@ -210,29 +227,74 @@ def convert_drive_url(url):
     return url
 
 
+def map_headers(header_row):
+    """
+    Dynamically maps Google Form / Sheet header column titles to field keys
+    regardless of question order or exact wording.
+    """
+    mapping = {}
+    for idx, col in enumerate(header_row):
+        c = col.strip().lower()
+        if "time" in c or c == "column 1":
+            mapping["timestamp"] = idx
+        elif "email" in c:
+            mapping["email"] = idx
+        elif "name" in c and "submit" not in c:
+            mapping["name"] = idx
+        elif "how long" in c or "duration" in c:
+            mapping["duration"] = idx
+        elif "describe" in c or c == "issue" or ("issue" in c and "how long" not in c):
+            mapping["issue"] = idx
+        elif ("location" in c or "place" in c) and "other" not in c:
+            mapping["location"] = idx
+        elif "other" in c:
+            mapping["others"] = idx
+        elif "severity" in c or "priority" in c:
+            mapping["severity"] = idx
+        elif "photo" in c or "evidence" in c or "proof" in c or "image" in c or "upload" in c:
+            mapping["proof"] = idx
+        elif "proposed" in c or "your solution" in c:
+            mapping["solution"] = idx
+        elif "enter" in c or "reward" in c or "contest" in c:
+            mapping["reward"] = idx
+        elif "solution" in c:
+            mapping["solution"] = idx
+    return mapping
+
+
 # ─── CORE SYNC FUNCTIONS ──────────────────────────────────────────────────────
-def insert_submission(cursor, row):
-    def safe(pos):
-        val = row[pos].strip() if len(row) > pos else ""
-        return val if val else None
+def insert_submission(cursor, row, col_map=None):
+    if col_map is None:
+        col_map = {}
 
-    timestamp  = safe(0)
-    name       = safe(1)
-    email      = safe(2)
-    location   = safe(3)
-    others     = safe(4)
-    issue      = safe(5)
-    severity   = safe(6)
-    duration   = safe(7)
-    proof      = safe(8)
-    solution   = safe(9)
-    reward_raw = safe(10)
+    def val(key, default_pos=None):
+        pos = col_map.get(key, default_pos)
+        if pos is not None and len(row) > pos:
+            v = row[pos].strip()
+            return v if v else None
+        return None
 
-    if not issue or not email:
-        print("  ⚠ Skipping row — missing required issue or email.")
+    timestamp  = val("timestamp", 0)
+    name       = val("name", 1) or "Anonymous Student"
+    email      = val("email", 2)
+    location   = val("location", 3)
+    others     = val("others", 4)
+    issue      = val("issue", 5)
+    severity   = val("severity", 6) or "Medium"
+    duration   = val("duration", 7) or "Recent"
+    proof      = val("proof", 8)
+    reward_raw = val("reward", 9)
+    solution   = val("solution", 10)
+
+    if not issue:
+        print("  ⚠ Skipping row — missing issue description.")
         return False
 
-    place        = others if not location else location
+    # Handle missing email gracefully
+    if not email:
+        email = f"student_{abs(hash(issue)) % 100000}@campus.local"
+
+    place        = others if (not location or location.lower() == 'other') and others else (location or "Campus")
     wants_reward = (str(reward_raw or "").strip().lower() == "yes")
     media_url    = convert_drive_url(proof)
     submitted_at = parse_timestamp(timestamp) if timestamp else datetime.now()
@@ -434,6 +496,7 @@ def sync():
 
     try:
         sheet = get_sheet()
+        print(f"  Connected tab: '{sheet.title}'")
         rows  = sheet.get_all_values()
     except Exception as e:
         print(f"  ✗ Could not read Google Sheet: {e}")
@@ -443,8 +506,9 @@ def sync():
         print("  No responses yet.")
         return
 
+    col_map = map_headers(rows[0])
     data = rows[1:]
-    print(f"  Found {len(data)} response(s) in sheet.")
+    print(f"  Found {len(data)} response(s) in tab '{sheet.title}'.")
 
     try:
         conn   = get_db()
@@ -457,7 +521,7 @@ def sync():
     new_count = 0
     for i, row in enumerate(data):
         try:
-            if insert_submission(cursor, row):
+            if insert_submission(cursor, row, col_map):
                 new_count += 1
         except Exception as e:
             print(f"  ⚠ Row {i+2} error: {e}")
