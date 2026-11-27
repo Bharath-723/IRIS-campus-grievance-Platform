@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { DashboardStats, Issue, TopSolution } from './types';
-import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, markSolutionUnique } from './services/api';
+import { DashboardStats, Issue, ResolvedIssue, TopSolution } from './types';
+import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, fetchResolvedIssues, markSolutionUnique } from './services/api';
 import { Navbar } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { IssueCard } from './components/IssueCard';
 import { TopTicketsView } from './components/TopTicketsView';
 import { TopSolutionsView } from './components/TopSolutionsView';
+import { ResolvedIssuesView } from './components/ResolvedIssuesView';
 import { SolutionsModal } from './components/SolutionsModal';
 import { StatusModal } from './components/StatusModal';
 import { ResolveModal } from './components/ResolveModal';
@@ -14,6 +15,7 @@ import { LightboxModal } from './components/LightboxModal';
 export const App: React.FC = () => {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [topIssues, setTopIssues] = useState<Issue[]>([]);
+  const [resolvedIssues, setResolvedIssues] = useState<ResolvedIssue[]>([]);
   const [topSolutionsData, setTopSolutionsData] = useState<{
     winner: TopSolution | null;
     solutions: TopSolution[];
@@ -30,7 +32,7 @@ export const App: React.FC = () => {
     return (localStorage.getItem('iris_theme') as 'dark' | 'light') || 'dark';
   });
 
-  const [activeTab, setActiveTab] = useState<'all' | 'top_tickets' | 'top_solutions'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'top_tickets' | 'top_solutions' | 'resolved'>('all');
   const [activeSeverity, setActiveSeverity] = useState('all');
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeStatus, setActiveStatus] = useState('all');
@@ -44,16 +46,18 @@ export const App: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [fetchedIssues, fetchedStats, fetchedTopIssues, fetchedTopSolutions] = await Promise.all([
+      const [fetchedIssues, fetchedStats, fetchedTopIssues, fetchedTopSolutions, fetchedResolved] = await Promise.all([
         fetchIssues(),
         fetchStats(),
         fetchTopIssues(),
         fetchTopSolutions(),
+        fetchResolvedIssues(),
       ]);
       setIssues(fetchedIssues);
       setStats(fetchedStats);
       setTopIssues(fetchedTopIssues);
       setTopSolutionsData(fetchedTopSolutions);
+      setResolvedIssues(fetchedResolved);
     } catch (e) {
       console.error('Error loading data:', e);
     }
@@ -89,23 +93,26 @@ export const App: React.FC = () => {
     }
   };
 
-  // Filtered issues for All Complaints view
+  // Filtered issues for Main Active Tickets view (excludes resolved tickets)
   const filteredIssues = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return issues.filter((issue) => {
-      // Severity
+      // 1. Remove resolved complaints from main active grid
+      const stat = (issue.status || 'open').toLowerCase().replace(' ', '_');
+      if (stat === 'resolved') return false;
+
+      // 2. Severity
       const sev = (issue.severity_level || '').toLowerCase();
       if (activeSeverity !== 'all' && sev !== activeSeverity) return false;
 
-      // Category
+      // 3. Category
       const cat = (issue.ai_category || '').toLowerCase();
       if (activeCategory !== 'all' && !cat.includes(activeCategory)) return false;
 
-      // Status
-      const stat = (issue.status || 'open').toLowerCase().replace(' ', '_');
+      // 4. Status filter (e.g. open vs in_progress)
       if (activeStatus !== 'all' && stat !== activeStatus) return false;
 
-      // Search
+      // 5. Search
       if (q) {
         const text = `${issue.representative_issue || ''} ${issue.place || ''} ${issue.first_raiser_name || ''}`.toLowerCase();
         if (!text.includes(q)) return false;
@@ -143,7 +150,7 @@ export const App: React.FC = () => {
           filteredIssues.length === 0 ? (
             <div className="empty-state">
               <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.6 }}>🔍</div>
-              <p>No complaints match your current filters.</p>
+              <p>No active complaints match your current filters.</p>
               <button
                 className="btn"
                 style={{ maxWidth: 160, margin: '12px auto 0' }}
@@ -187,6 +194,13 @@ export const App: React.FC = () => {
             winner={topSolutionsData.winner}
             solutions={topSolutionsData.solutions}
             onMarkUnique={handleMarkUniqueSolution}
+          />
+        )}
+
+        {activeTab === 'resolved' && (
+          <ResolvedIssuesView
+            issues={resolvedIssues}
+            onOpenLightbox={(url, caption) => setLightboxData({ url, caption })}
           />
         )}
       </main>

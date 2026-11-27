@@ -435,6 +435,51 @@ def get_top_solutions():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ── GET all resolved issues with resolution proof ──
+@app.route('/api/resolved-issues', methods=['GET'])
+def get_resolved_issues():
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                ai.id,
+                ai.place,
+                ai.representative_issue,
+                ai.severity_level,
+                ai.ai_category,
+                ai.media_url,
+                ai.status,
+                ai.created_at,
+                COALESCE(EXTRACT(DAY FROM (NOW() - ai.created_at))::INT, 0) AS days_open,
+                r.resolved_by,
+                r.resolution_note,
+                r.proof_media_url,
+                r.resolved_at
+            FROM accepted_issues ai
+            LEFT JOIN (
+                SELECT DISTINCT ON (issue_id)
+                    issue_id, resolved_by, resolution_note, proof_media_url, resolved_at
+                FROM resolved_issues
+                ORDER BY issue_id, resolved_at DESC
+            ) r ON r.issue_id = ai.id
+            WHERE ai.status = 'resolved'
+            ORDER BY COALESCE(r.resolved_at, ai.updated_at, ai.created_at) DESC;
+        """)
+        rows = cursor.fetchall()
+        cols = [c[0] for c in cursor.description]
+        records = []
+        for row in rows:
+            d = dict(zip(cols, row))
+            if d.get('created_at'): d['created_at'] = str(d['created_at'])
+            if d.get('resolved_at'): d['resolved_at'] = str(d['resolved_at'])
+            records.append(d)
+        conn.close()
+        return jsonify({'success': True, 'issues': records})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5000))
     host = os.getenv("HOST", "0.0.0.0")

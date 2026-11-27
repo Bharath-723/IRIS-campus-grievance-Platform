@@ -44,6 +44,22 @@ export interface TopSolution extends Solution {
   ai_category?: string;
 }
 
+export interface ResolvedIssue {
+  id: number;
+  place: string;
+  representative_issue: string;
+  severity_level: SeverityLevel;
+  ai_category?: string;
+  media_url?: string;
+  status: IssueStatus;
+  created_at?: string;
+  days_open: number;
+  resolved_by?: string;
+  resolution_note?: string;
+  proof_media_url?: string;
+  resolved_at?: string;
+}
+
 export interface ResolutionRecord {
   id: number;
   resolved_by: string;

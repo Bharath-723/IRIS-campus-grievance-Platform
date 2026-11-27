@@ -1,6 +1,6 @@
 import React from 'react';
 import { DashboardStats } from '../types';
-import { Sun, Moon, LayoutGrid, Flame, Sparkles } from 'lucide-react';
+import { Sun, Moon, LayoutGrid, Flame, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface NavbarProps {
   stats: DashboardStats;
@@ -8,8 +8,8 @@ interface NavbarProps {
   onToggleTheme: () => void;
   activeStatus: string;
   onSelectStatus: (status: string) => void;
-  activeTab: 'all' | 'top_tickets' | 'top_solutions';
-  onSelectTab: (tab: 'all' | 'top_tickets' | 'top_solutions') => void;
+  activeTab: 'all' | 'top_tickets' | 'top_solutions' | 'resolved';
+  onSelectTab: (tab: 'all' | 'top_tickets' | 'top_solutions' | 'resolved') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,7 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`nav-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => onSelectTab('all')}
           >
-            <LayoutGrid size={15} /> All Complaints
+            <LayoutGrid size={15} /> Active Tickets
           </button>
           <button
             className={`nav-tab-btn ${activeTab === 'top_tickets' ? 'active' : ''}`}
@@ -48,13 +48,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Sparkles size={15} color="var(--ai)" /> Top Solutions
           </button>
+          <button
+            className={`nav-tab-btn ${activeTab === 'resolved' ? 'active' : ''}`}
+            onClick={() => onSelectTab('resolved')}
+          >
+            <CheckCircle2 size={15} color="var(--low)" /> Resolved ({stats.resolved})
+          </button>
         </div>
       </div>
 
       <div className="header-right">
         <div className="header-stats">
           <div
-            className={`hstat ${activeStatus === 'all' ? 'active' : ''}`}
+            className={`hstat ${activeStatus === 'all' && activeTab === 'all' ? 'active' : ''}`}
             onClick={() => {
               onSelectTab('all');
               onSelectStatus('all');
@@ -64,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hstat-lbl">Total</div>
           </div>
           <div
-            className={`hstat ${activeStatus === 'open' ? 'active' : ''}`}
+            className={`hstat ${activeStatus === 'open' && activeTab === 'all' ? 'active' : ''}`}
             onClick={() => {
               onSelectTab('all');
               onSelectStatus('open');
@@ -76,7 +82,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hstat-lbl">Open</div>
           </div>
           <div
-            className={`hstat ${activeStatus === 'in_progress' ? 'active' : ''}`}
+            className={`hstat ${activeStatus === 'in_progress' && activeTab === 'all' ? 'active' : ''}`}
             onClick={() => {
               onSelectTab('all');
               onSelectStatus('in_progress');
@@ -88,10 +94,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hstat-lbl">In Progress</div>
           </div>
           <div
-            className={`hstat ${activeStatus === 'resolved' ? 'active' : ''}`}
+            className={`hstat ${activeTab === 'resolved' ? 'active' : ''}`}
             onClick={() => {
-              onSelectTab('all');
-              onSelectStatus('resolved');
+              onSelectTab('resolved');
             }}
           >
             <div className="hstat-val" style={{ color: 'var(--low)' }}>

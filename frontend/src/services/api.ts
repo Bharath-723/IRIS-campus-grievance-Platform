@@ -1,4 +1,4 @@
-import { DashboardStats, Issue, ResolutionRecord, Solution, TopSolution } from '../types';
+import { DashboardStats, Issue, ResolutionRecord, ResolvedIssue, Solution, TopSolution } from '../types';
 
 const API_BASE = '/api';
 
@@ -6,6 +6,13 @@ export async function fetchIssues(): Promise<Issue[]> {
   const res = await fetch(`${API_BASE}/issues`);
   const data = await res.json();
   if (!data.success) throw new Error(data.error || 'Failed to fetch issues');
+  return data.issues;
+}
+
+export async function fetchResolvedIssues(): Promise<ResolvedIssue[]> {
+  const res = await fetch(`${API_BASE}/resolved-issues`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to fetch resolved issues');
   return data.issues;
 }
 
