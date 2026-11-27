@@ -982,11 +982,11 @@ function categoryIcon(cat) {
   return '📌';
 }
 
-function normalizeDriveUrl(url) {
+function getImageUrl(url) {
   if (!url) return '';
   if (url.includes('drive.google.com')) {
     const match = url.match(/id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
+    if (match) return `${API}/image/${match[1]}`;
   }
   return url;
 }
@@ -1012,20 +1012,14 @@ function renderCards() {
 
     const sevKey = (issue.severity_level || 'low').toLowerCase();
     const statusKey = (issue.status || 'open').toLowerCase().replace(' ', '_');
-    const thumbUrl = normalizeDriveUrl(issue.media_url);
+    const thumbUrl = getImageUrl(issue.media_url);
 
-    // Media Thumbnail & Fallback
+    // Media Thumbnail & Direct Image Display
     const mediaHTML = issue.media_url
       ? `<div class="card-media">
-           <img src="${thumbUrl}" alt="Evidence"
+           <img src="${thumbUrl}" alt="Evidence Photo" loading="lazy"
                 onclick="openLightbox('${thumbUrl}', '${escapeHtml(issue.place || '')}')"
-                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-           <div class="no-media" style="display:none;">
-             <div class="no-media-icon">📷</div>
-             <span>Attached in Google Drive</span>
-             <a class="media-overlay-badge" href="${issue.media_url}" target="_blank" rel="noopener">Open Drive Link ↗</a>
-           </div>
-           <a class="media-overlay-badge" href="${issue.media_url}" target="_blank" rel="noopener">Drive Link ↗</a>
+                onerror="this.onerror=null; this.src='${API}/image/placeholder';">
            ${issue.ai_category ? `<div class="ai-category-badge">${categoryIcon(issue.ai_category)} ${issue.ai_category}</div>` : ''}
          </div>`
       : `<div class="card-media">

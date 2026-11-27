@@ -1,5 +1,6 @@
 import os
-from flask import Flask, jsonify, request, send_from_directory
+import requests
+from flask import Flask, jsonify, request, send_from_directory, Response
 from flask_cors import CORS
 from db import get_db
 
@@ -12,12 +13,102 @@ except ImportError:
 app = Flask(__name__)
 CORS(app)
 
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads', 'drive_cache')
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+_drive_creds = None
+def get_drive_token():
+    global _drive_creds
+    cred_file = 'Credentials.json' if os.path.exists('Credentials.json') else 'credentials.json'
+    if not os.path.exists(cred_file):
+        return None
+    try:
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import Request
+        if _drive_creds is None or not _drive_creds.valid:
+            _drive_creds = service_account.Credentials.from_service_account_file(
+                cred_file,
+                scopes=['https://www.googleapis.com/auth/drive.readonly']
+            )
+            _drive_creds.refresh(Request())
+        return _drive_creds.token
+    except Exception as e:
+        return None
+
+def get_svg_placeholder(text="Evidence Attached"):
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="600" height="360" viewBox="0 0 600 360">
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#14171f"/>
+          <stop offset="100%" stop-color="#1c212c"/>
+        </linearGradient>
+      </defs>
+      <rect width="600" height="360" fill="url(#g)"/>
+      <circle cx="300" cy="145" r="44" fill="#252b3a" stroke="#293040" stroke-width="2"/>
+      <path d="M280 138h40v24h-40z M286 132h28v6h-28z" fill="#f59e0b" opacity="0.95"/>
+      <circle cx="300" cy="150" r="7" fill="#14171f"/>
+      <text x="300" y="224" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="16" font-weight="600" fill="#f3f5f9" text-anchor="middle">{text}</text>
+      <text x="300" y="250" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#8b95a8" text-anchor="middle">Campus Grievance Evidence</text>
+    </svg>"""
+
 
 # ── Serve Dashboard ──
 @app.route('/', methods=['GET'])
 @app.route('/dashboard', methods=['GET'])
 def serve_dashboard():
     return send_from_directory('.', 'index.html')
+
+
+# ── Proxy Google Drive Images ──
+@app.route('/api/image/<file_id>', methods=['GET'])
+def proxy_drive_image(file_id):
+    if file_id == 'placeholder':
+        return Response(get_svg_placeholder("No Media Attached"), mimetype='image/svg+xml')
+
+    clean_id = "".join(c for c in file_id if c.isalnum() or c in "-_")
+    if not clean_id:
+        return Response(get_svg_placeholder("Invalid Image"), mimetype='image/svg+xml')
+
+    cached_path = os.path.join(CACHE_DIR, f"{clean_id}.jpg")
+    if os.path.exists(cached_path):
+        try:
+            with open(cached_path, 'rb') as f:
+                return Response(f.read(), mimetype='image/jpeg', headers={'Cache-Control': 'public, max-age=86400'})
+        except Exception:
+            pass
+
+    # 1. Try Google Drive API via Service Account
+    token = get_drive_token()
+    if token:
+        try:
+            drive_url = f"https://www.googleapis.com/drive/v3/files/{clean_id}?alt=media"
+            r = requests.get(drive_url, headers={'Authorization': f'Bearer {token}'}, timeout=6)
+            if r.status_code == 200 and 'json' not in r.headers.get('Content-Type', '').lower():
+                with open(cached_path, 'wb') as f:
+                    f.write(r.content)
+                ctype = r.headers.get('Content-Type', 'image/jpeg')
+                return Response(r.content, mimetype=ctype, headers={'Cache-Control': 'public, max-age=86400'})
+        except Exception:
+            pass
+
+    # 2. Try direct thumbnail / uc endpoints
+    for candidate_url in [
+        f"https://lh3.googleusercontent.com/d/{clean_id}",
+        f"https://drive.google.com/thumbnail?id={clean_id}&sz=w1000",
+        f"https://drive.google.com/uc?id={clean_id}&export=download"
+    ]:
+        try:
+            r = requests.get(candidate_url, timeout=5, allow_redirects=True)
+            ctype = r.headers.get('Content-Type', '')
+            if r.status_code == 200 and 'image' in ctype.lower():
+                with open(cached_path, 'wb') as f:
+                    f.write(r.content)
+                return Response(r.content, mimetype=ctype, headers={'Cache-Control': 'public, max-age=86400'})
+        except Exception:
+            pass
+
+    # 3. Fallback placeholder SVG
+    return Response(get_svg_placeholder("Photo Evidence"), mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=60'})
 
 
 # ── GET all accepted issues ──
