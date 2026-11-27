@@ -14,6 +14,7 @@ export interface Issue {
   status: IssueStatus;
   created_at?: string;
   ai_category?: string;
+  ai_suggested_solution?: string;
   ai_best_solution?: string;
   ai_best_solution_id?: number;
   ai_reason?: string;
@@ -33,6 +34,14 @@ export interface Solution {
   ai_score?: number;
   ai_selected?: boolean;
   submitted_at?: string;
+}
+
+export interface TopSolution extends Solution {
+  issue_id: number;
+  representative_issue: string;
+  place: string;
+  severity_level: SeverityLevel;
+  ai_category?: string;
 }
 
 export interface ResolutionRecord {

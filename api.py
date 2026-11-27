@@ -338,6 +338,103 @@ def get_stats():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ── GET Top 10 Repeated Tickets & First Raisers ──
+@app.route('/api/top-issues', methods=['GET'])
+def get_top_issues():
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                ai.id,
+                ai.place,
+                ai.representative_issue,
+                ai.severity_level,
+                ai.issue_duration,
+                ai.frequency,
+                ai.first_raiser_name,
+                ai.first_raiser_email,
+                ai.media_url,
+                ai.status,
+                ai.created_at,
+                ai.ai_category,
+                ai.ai_suggested_solution,
+                COALESCE(EXTRACT(DAY FROM (NOW() - ai.created_at))::INT, 0) AS days_open,
+                COUNT(s.id) AS total_solutions
+            FROM accepted_issues ai
+            LEFT JOIN solutions s ON s.issue_id = ai.id
+            GROUP BY
+                ai.id, ai.place, ai.representative_issue,
+                ai.severity_level, ai.issue_duration,
+                ai.frequency, ai.first_raiser_name,
+                ai.first_raiser_email, ai.media_url,
+                ai.status, ai.created_at,
+                ai.ai_category, ai.ai_suggested_solution
+            ORDER BY ai.frequency DESC, ai.id ASC
+            LIMIT 10;
+        """)
+        rows = cursor.fetchall()
+        cols = [c[0] for c in cursor.description]
+        top_issues = []
+        for row in rows:
+            d = dict(zip(cols, row))
+            if d.get('created_at'):
+                d['created_at'] = str(d['created_at'])
+            top_issues.append(d)
+        conn.close()
+        return jsonify({'success': True, 'issues': top_issues})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── GET Top 10 Solutions & AI Chosen Winner ──
+@app.route('/api/top-solutions', methods=['GET'])
+def get_top_solutions():
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                s.id,
+                s.issue_id,
+                s.solution_text,
+                s.submitter_name,
+                s.submitter_email,
+                COALESCE(s.ai_score, 0) AS ai_score,
+                s.ai_selected,
+                s.wants_reward,
+                s.is_unique,
+                s.reward_given,
+                s.submitted_at,
+                ai.representative_issue,
+                ai.place,
+                ai.severity_level,
+                ai.ai_category
+            FROM solutions s
+            JOIN accepted_issues ai ON s.issue_id = ai.id
+            WHERE LOWER(TRIM(s.solution_text)) NOT IN ('no solution', 'none', 'no', 'n/a', '')
+            ORDER BY s.ai_score DESC, LENGTH(s.solution_text) DESC, s.id ASC
+            LIMIT 10;
+        """)
+        rows = cursor.fetchall()
+        cols = [c[0] for c in cursor.description]
+        solutions = []
+        winner = None
+        for row in rows:
+            d = dict(zip(cols, row))
+            if d.get('submitted_at'):
+                d['submitted_at'] = str(d['submitted_at'])
+            if d.get('ai_selected') and not winner:
+                winner = d
+            solutions.append(d)
+        if not winner and solutions:
+            winner = solutions[0]
+        conn.close()
+        return jsonify({'success': True, 'winner': winner, 'solutions': solutions})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5000))
     host = os.getenv("HOST", "0.0.0.0")

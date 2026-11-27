@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { DashboardStats, Issue } from './types';
-import { fetchIssues, fetchStats } from './services/api';
+import { DashboardStats, Issue, TopSolution } from './types';
+import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, markSolutionUnique } from './services/api';
 import { Navbar } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { IssueCard } from './components/IssueCard';
+import { TopTicketsView } from './components/TopTicketsView';
+import { TopSolutionsView } from './components/TopSolutionsView';
 import { SolutionsModal } from './components/SolutionsModal';
 import { StatusModal } from './components/StatusModal';
 import { ResolveModal } from './components/ResolveModal';
@@ -11,16 +13,24 @@ import { LightboxModal } from './components/LightboxModal';
 
 export const App: React.FC = () => {
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [topIssues, setTopIssues] = useState<Issue[]>([]);
+  const [topSolutionsData, setTopSolutionsData] = useState<{
+    winner: TopSolution | null;
+    solutions: TopSolution[];
+  }>({ winner: null, solutions: [] });
+
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
     open: 0,
     in_progress: 0,
     resolved: 0,
   });
+
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('iris_theme') as 'dark' | 'light') || 'dark';
   });
 
+  const [activeTab, setActiveTab] = useState<'all' | 'top_tickets' | 'top_solutions'>('all');
   const [activeSeverity, setActiveSeverity] = useState('all');
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeStatus, setActiveStatus] = useState('all');
@@ -34,9 +44,16 @@ export const App: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [fetchedIssues, fetchedStats] = await Promise.all([fetchIssues(), fetchStats()]);
+      const [fetchedIssues, fetchedStats, fetchedTopIssues, fetchedTopSolutions] = await Promise.all([
+        fetchIssues(),
+        fetchStats(),
+        fetchTopIssues(),
+        fetchTopSolutions(),
+      ]);
       setIssues(fetchedIssues);
       setStats(fetchedStats);
+      setTopIssues(fetchedTopIssues);
+      setTopSolutionsData(fetchedTopSolutions);
     } catch (e) {
       console.error('Error loading data:', e);
     }
@@ -59,7 +76,20 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Filtered issues
+  const handleMarkUniqueSolution = async (id: number) => {
+    try {
+      await markSolutionUnique(id);
+      setTopSolutionsData((prev) => ({
+        ...prev,
+        solutions: prev.solutions.map((s) => (s.id === id ? { ...s, is_unique: true } : s)),
+        winner: prev.winner && prev.winner.id === id ? { ...prev.winner, is_unique: true } : prev.winner,
+      }));
+    } catch (e) {
+      alert('Failed to mark unique: ' + e);
+    }
+  };
+
+  // Filtered issues for All Complaints view
   const filteredIssues = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return issues.filter((issue) => {
@@ -93,48 +123,71 @@ export const App: React.FC = () => {
         onToggleTheme={toggleTheme}
         activeStatus={activeStatus}
         onSelectStatus={setActiveStatus}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
       />
 
-      <Toolbar
-        activeSeverity={activeSeverity}
-        onSelectSeverity={setActiveSeverity}
-        activeCategory={activeCategory}
-        onSelectCategory={setActiveCategory}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
+      {activeTab === 'all' && (
+        <Toolbar
+          activeSeverity={activeSeverity}
+          onSelectSeverity={setActiveSeverity}
+          activeCategory={activeCategory}
+          onSelectCategory={setActiveCategory}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
+      )}
 
-      <main>
-        {filteredIssues.length === 0 ? (
-          <div className="empty-state">
-            <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.6 }}>🔍</div>
-            <p>No complaints match your current filters.</p>
-            <button
-              className="btn"
-              style={{ maxWidth: 160, margin: '12px auto 0' }}
-              onClick={() => {
-                setActiveSeverity('all');
-                setActiveCategory('all');
-                setActiveStatus('all');
-                setSearchQuery('');
-              }}
-            >
-              Reset Filters
-            </button>
-          </div>
-        ) : (
-          <div className="grid">
-            {filteredIssues.map((issue) => (
-              <IssueCard
-                key={issue.id}
-                issue={issue}
-                onOpenSolutions={setSolutionsIssue}
-                onOpenResolve={setResolveIssue}
-                onOpenStatus={setStatusIssue}
-                onOpenLightbox={(url, caption) => setLightboxData({ url, caption })}
-              />
-            ))}
-          </div>
+      <main style={{ paddingTop: 24, paddingBottom: 40 }}>
+        {activeTab === 'all' && (
+          filteredIssues.length === 0 ? (
+            <div className="empty-state">
+              <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.6 }}>🔍</div>
+              <p>No complaints match your current filters.</p>
+              <button
+                className="btn"
+                style={{ maxWidth: 160, margin: '12px auto 0' }}
+                onClick={() => {
+                  setActiveSeverity('all');
+                  setActiveCategory('all');
+                  setActiveStatus('all');
+                  setSearchQuery('');
+                }}
+              >
+                Reset Filters
+              </button>
+            </div>
+          ) : (
+            <div className="grid">
+              {filteredIssues.map((issue) => (
+                <IssueCard
+                  key={issue.id}
+                  issue={issue}
+                  onOpenSolutions={setSolutionsIssue}
+                  onOpenResolve={setResolveIssue}
+                  onOpenStatus={setStatusIssue}
+                  onOpenLightbox={(url, caption) => setLightboxData({ url, caption })}
+                />
+              ))}
+            </div>
+          )
+        )}
+
+        {activeTab === 'top_tickets' && (
+          <TopTicketsView
+            issues={topIssues}
+            onOpenSolutions={setSolutionsIssue}
+            onOpenResolve={setResolveIssue}
+            onOpenStatus={setStatusIssue}
+          />
+        )}
+
+        {activeTab === 'top_solutions' && (
+          <TopSolutionsView
+            winner={topSolutionsData.winner}
+            solutions={topSolutionsData.solutions}
+            onMarkUnique={handleMarkUniqueSolution}
+          />
         )}
       </main>
 

@@ -570,3 +570,206 @@ main {
   padding: 60px 20px;
   color: var(--text-muted);
 }
+
+/* Nav Switcher Tabs */
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface2);
+  padding: 4px;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  margin-left: 20px;
+}
+.nav-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.nav-tab-btn:hover {
+  color: var(--text);
+  background: var(--surface3);
+}
+.nav-tab-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+/* Top Banner */
+.top-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: var(--card-shadow);
+}
+.trophy-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Top Ticket Cards */
+.top-ticket-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+}
+.ticket-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.freq-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--high-bg);
+  color: var(--high);
+  border: 1px solid var(--high);
+}
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--ai-bg);
+  color: var(--ai);
+  border: 1px solid var(--ai);
+}
+
+/* 🏆 Reward Spotlight Container */
+.reward-spotlight-box {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.02) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-top: 6px;
+  position: relative;
+}
+.reward-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.reward-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* 👑 Winner Spotlight Card */
+.winner-spotlight-card {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%);
+  border: 2px solid var(--ai);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  box-shadow: 0 6px 24px rgba(168, 85, 247, 0.15);
+}
+.winner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(90deg, #a855f7, #f59e0b);
+  color: #ffffff;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.winner-grid {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.winner-info-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 22px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Solution Rank Card */
+.solution-rank-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.2s, border-color 0.2s;
+}
+.solution-rank-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
+}
+.solution-rank-card.is-winner {
+  border: 1px solid var(--ai);
+  background: rgba(168, 85, 247, 0.04);
+}
+.solution-rank-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+  min-width: 44px;
+  text-align: center;
+}
+.score-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.score-badge.score-high {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border-color: #10b981;
+}

@@ -1,4 +1,4 @@
-import { DashboardStats, Issue, ResolutionRecord, Solution } from '../types';
+import { DashboardStats, Issue, ResolutionRecord, Solution, TopSolution } from '../types';
 
 const API_BASE = '/api';
 
@@ -7,6 +7,20 @@ export async function fetchIssues(): Promise<Issue[]> {
   const data = await res.json();
   if (!data.success) throw new Error(data.error || 'Failed to fetch issues');
   return data.issues;
+}
+
+export async function fetchTopIssues(): Promise<Issue[]> {
+  const res = await fetch(`${API_BASE}/top-issues`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to fetch top issues');
+  return data.issues;
+}
+
+export async function fetchTopSolutions(): Promise<{ winner: TopSolution | null; solutions: TopSolution[] }> {
+  const res = await fetch(`${API_BASE}/top-solutions`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to fetch top solutions');
+  return { winner: data.winner, solutions: data.solutions };
 }
 
 export async function fetchSolutions(issueId: number): Promise<Solution[]> {
