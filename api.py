@@ -60,7 +60,10 @@ FRONTEND_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fronte
 def serve_dashboard():
     if os.path.exists(os.path.join(FRONTEND_DIST, 'index.html')):
         return send_from_directory(FRONTEND_DIST, 'index.html')
-    return send_from_directory('.', 'index.html')
+    return jsonify({
+        'status': 'IRIS API running',
+        'dashboard': 'Frontend not built. Run: cd frontend && npm run build'
+    }), 200
 
 @app.route('/assets/<path:path>', methods=['GET'])
 def serve_assets(path):

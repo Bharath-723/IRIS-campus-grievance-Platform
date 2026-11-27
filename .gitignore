@@ -11,9 +11,17 @@ ENV/
 
 # Environment and Secrets
 .env
+.env*.local
 credentials.json
+Credentials.json
 *.pem
 *.key
+
+# Uploads & Cache
+uploads/
+
+# Frontend
+frontend/node_modules/
 
 # IDE & OS
 .vscode/
