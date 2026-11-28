@@ -465,6 +465,8 @@ def get_top_issues():
                 ai.created_at,
                 ai.ai_category,
                 ai.ai_suggested_solution,
+                ai.ai_best_solution,
+                ai.ai_reason,
                 COALESCE(ai.reward_given, FALSE) AS reward_given,
                 COALESCE(EXTRACT(DAY FROM (NOW() - ai.created_at))::INT, 0) AS days_open,
                 COUNT(s.id) AS total_solutions
@@ -478,6 +480,7 @@ def get_top_issues():
                 ai.first_raiser_email, ai.media_url,
                 ai.status, ai.created_at,
                 ai.ai_category, ai.ai_suggested_solution,
+                ai.ai_best_solution, ai.ai_reason,
                 ai.reward_given
             ORDER BY ai.frequency DESC, ai.id ASC
             LIMIT 10;
@@ -729,6 +732,7 @@ def get_previous_winners():
                 ai.first_raiser_email, ai.media_url,
                 ai.status, ai.created_at,
                 ai.ai_category, ai.ai_suggested_solution,
+                ai.ai_best_solution, ai.ai_reason,
                 ai.reward_given, ai.reward_given_at
             ORDER BY ai.reward_given_at DESC NULLS LAST, ai.frequency DESC
             LIMIT 1;

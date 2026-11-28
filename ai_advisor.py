@@ -1,6 +1,7 @@
 import os
 import json
 import urllib.request
+import urllib.error
 from db import get_db
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -10,24 +11,41 @@ GEMINI_URL = (
 )
 
 def query_gemini(prompt: str) -> str:
-    if not GEMINI_API_KEY or len(GEMINI_API_KEY) < 15:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key or len(api_key) < 15:
         return None
-    try:
-        payload = json.dumps({
-            "contents": [{"parts": [{"text": prompt}]}]
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            GEMINI_URL,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except Exception as e:
-        print(f"Gemini query notice: {e}")
-        return None
+    
+    # Try current Gemini generative models via Google AI Studio API
+    for model_name in ["gemini-1.5-flash", "gemini-2.0-flash"]:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            payload = json.dumps({
+                "contents": [{"parts": [{"text": prompt}]}]
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts and "text" in parts[0]:
+                        return parts[0]["text"].strip()
+        except urllib.error.HTTPError as e:
+            try:
+                err_data = json.loads(e.read().decode())
+                err_msg = err_data.get("error", {}).get("message", "")
+                print(f"Gemini notice ({model_name}): HTTP {e.code} — {err_msg}")
+            except Exception:
+                print(f"Gemini notice ({model_name}): HTTP {e.code}")
+        except Exception as e:
+            print(f"Gemini notice ({model_name}): {e}")
+            
+    return None
 
 def generate_smart_solution(issue_text: str, place: str = '', category: str = ''):
     """

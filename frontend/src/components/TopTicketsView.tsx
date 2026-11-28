@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Issue } from '../types';
-import { Trophy, Flame, MapPin, Award, CheckCircle, Clock, Gift } from 'lucide-react';
+import { requestAiRecommendation } from '../services/api';
+import { Trophy, Flame, MapPin, Award, CheckCircle, Clock, Gift, Sparkles, Users } from 'lucide-react';
 
 interface TopTicketsViewProps {
   issues: Issue[];
@@ -27,6 +28,230 @@ function getRankBadge(rank: number) {
   if (rank === 3) return { label: '🥉 #3 Most Repeated', color: '#d97706', bg: 'rgba(217, 119, 6, 0.2)' };
   return { label: `#${rank} Ranked`, color: 'var(--text-muted)', bg: 'var(--surface3)' };
 }
+
+interface TopTicketCardProps {
+  issue: Issue;
+  rank: number;
+  onOpenSolutions: (issue: Issue) => void;
+  onOpenResolve: (issue: Issue) => void;
+  onOpenStatus: (issue: Issue) => void;
+  onIssueReward: (issue: Issue) => void;
+}
+
+const TopTicketCard: React.FC<TopTicketCardProps> = ({
+  issue,
+  rank,
+  onOpenSolutions,
+  onOpenResolve,
+  onOpenStatus,
+  onIssueReward,
+}) => {
+  const [aiSolution, setAiSolution] = useState(issue.ai_suggested_solution || '');
+  const [aiReason, setAiReason] = useState(issue.ai_reason || '');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  useEffect(() => {
+    setAiSolution(issue.ai_suggested_solution || '');
+    setAiReason(issue.ai_reason || '');
+  }, [issue.ai_suggested_solution, issue.ai_reason]);
+
+  const handleRefreshAi = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsGeneratingAi(true);
+    try {
+      const res = await requestAiRecommendation(issue.id);
+      setAiSolution(res.ai_suggested_solution);
+      setAiReason(res.ai_reason);
+    } catch (err) {
+      alert('Could not refresh AI recommendation: ' + err);
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  const rankInfo = getRankBadge(rank);
+  const hasRaiserName = Boolean(issue.first_raiser_name && !issue.first_raiser_name.toLowerCase().includes('anonymous'));
+  const hasRaiserEmail = Boolean(issue.first_raiser_email && !issue.first_raiser_email.endsWith('@campus.local'));
+
+  return (
+    <div className="top-ticket-card">
+      <div className="ticket-card-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              background: rankInfo.bg,
+              color: rankInfo.color,
+              padding: '4px 10px',
+              borderRadius: 20,
+              fontWeight: 700,
+              fontSize: 12,
+              border: `1px solid ${rankInfo.color}`,
+            }}
+          >
+            {rankInfo.label}
+          </span>
+
+          <span className="freq-pill">
+            <Flame size={13} color="#f97316" /> {issue.frequency} report(s) from students
+          </span>
+
+          {issue.ai_category && (
+            <span className="category-pill">
+              {getCategoryIcon(issue.ai_category)} {issue.ai_category}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {rank === 1 && (
+            <button
+              className="btn-issue-reward"
+              onClick={() => onIssueReward(issue)}
+              title="Issue official reward to this student and move to Previous Winners"
+            >
+              <Gift size={13} /> Issue Reward
+            </button>
+          )}
+
+          <div className="status-dot">
+            <div className={`dot dot-${issue.status || 'open'}`} />
+            {(issue.status || 'open').replace('_', ' ')}
+          </div>
+        </div>
+      </div>
+
+      {/* Problem Description */}
+      <div style={{ margin: '14px 0' }}>
+        <div style={{ fontSize: 13, color: 'var(--accent2)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+          <MapPin size={14} /> {issue.place || 'Campus'}
+        </div>
+        <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', lineHeight: 1.4 }}>
+          {issue.representative_issue}
+        </h3>
+      </div>
+
+      {/* 🏆 First Raiser Reward Spotlight Box */}
+      <div className="reward-spotlight-box">
+        <div className="reward-badge-pill">
+          <Trophy size={14} color="#f59e0b" />
+          <span>🏆 FIRST RAISER REWARD WINNER</span>
+        </div>
+
+        <div className="reward-content">
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>
+              Award Recipient (First Submitted By)
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>
+              {hasRaiserName ? issue.first_raiser_name : 'Anonymous Person (Unclaimed Reward)'}
+            </div>
+            {hasRaiserEmail && (
+              <div style={{ fontSize: 13, color: 'var(--accent)', marginTop: 2 }}>
+                ✉ {issue.first_raiser_email}
+              </div>
+            )}
+          </div>
+
+          <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
+            {rank === 1 && (
+              <button
+                className="btn-issue-reward-prominent"
+                onClick={() => onIssueReward(issue)}
+                style={{ marginBottom: 6 }}
+              >
+                <Gift size={13} /> Issue Reward to Student
+              </button>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+              <Clock size={13} /> First reported
+            </div>
+            <div style={{ fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>
+              {issue.created_at ? new Date(issue.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Earlier'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 👥 1. PEOPLE / STUDENT PROPOSED SOLUTION */}
+      {issue.ai_best_solution ? (
+        <div className="people-solution-box" style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="people-solution-label">
+              <Users size={12} />
+              <span>👥 People's Proposed Solution</span>
+            </div>
+            <span style={{ fontSize: 10, color: 'var(--people)', fontWeight: 700 }}>
+              👑 Student Choice
+            </span>
+          </div>
+          <div className="people-solution-text">
+            "{issue.ai_best_solution}"
+          </div>
+        </div>
+      ) : (
+        <div className="people-solution-box empty" style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="people-solution-label" style={{ color: 'var(--text-muted)' }}>
+              <Users size={12} />
+              <span>👥 People's Proposed Solution</span>
+            </div>
+            <button
+              className="btn-propose-solution"
+              onClick={() => onOpenSolutions(issue)}
+              title="Submit your solution for this issue to win rewards"
+            >
+              + Propose Solution
+            </button>
+          </div>
+          <div className="people-solution-empty">
+            No student solutions submitted yet. Submit one to earn rewards!
+          </div>
+        </div>
+      )}
+
+      {/* 🤖 2. AI RECOMMENDED ACTION PLAN WITH ASK AI BUTTON */}
+      <div className="ai-solution-box" style={{ marginTop: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="ai-solution-label">
+            <Sparkles size={13} color="var(--ai)" />
+            <span>🤖 AI Recommended Action Plan</span>
+          </div>
+          <button
+            className="btn-refresh-ai"
+            onClick={handleRefreshAi}
+            disabled={isGeneratingAi}
+            title="Re-run AI solution engine for this top consensus issue"
+          >
+            {isGeneratingAi ? 'Thinking...' : '✨ Ask AI'}
+          </button>
+        </div>
+
+        <div className="ai-solution-text">
+          {aiSolution || 'Click "✨ Ask AI" to generate an automated resolution strategy.'}
+        </div>
+
+        {aiReason && (
+          <div className="ai-reason">
+            💡 <strong>AI Rationale:</strong> {aiReason}
+          </div>
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+        <button className="btn" onClick={() => onOpenSolutions(issue)}>
+          Solutions ({issue.total_solutions || 0})
+        </button>
+        <button className="btn btn-resolve" onClick={() => onOpenResolve(issue)}>
+          ✓ Resolve Issue
+        </button>
+        <button className="btn btn-primary" onClick={() => onOpenStatus(issue)}>
+          Update Status
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export const TopTicketsView: React.FC<TopTicketsViewProps> = ({
   issues,
@@ -66,126 +291,17 @@ export const TopTicketsView: React.FC<TopTicketsViewProps> = ({
 
       {/* Top 10 List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {issues.slice(0, 10).map((issue, idx) => {
-          const rank = idx + 1;
-          const rankInfo = getRankBadge(rank);
-          const hasRaiserName = Boolean(issue.first_raiser_name && !issue.first_raiser_name.toLowerCase().includes('anonymous'));
-          const hasRaiserEmail = Boolean(issue.first_raiser_email && !issue.first_raiser_email.endsWith('@campus.local'));
-
-          return (
-            <div key={issue.id} className="top-ticket-card">
-              <div className="ticket-card-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span
-                    style={{
-                      background: rankInfo.bg,
-                      color: rankInfo.color,
-                      padding: '4px 10px',
-                      borderRadius: 20,
-                      fontWeight: 700,
-                      fontSize: 12,
-                      border: `1px solid ${rankInfo.color}`,
-                    }}
-                  >
-                    {rankInfo.label}
-                  </span>
-
-                  <span className="freq-pill">
-                    <Flame size={13} color="#f97316" /> {issue.frequency} report(s) from students
-                  </span>
-
-                  {issue.ai_category && (
-                    <span className="category-pill">
-                      {getCategoryIcon(issue.ai_category)} {issue.ai_category}
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {rank === 1 && (
-                    <button
-                      className="btn-issue-reward"
-                      onClick={() => handleIssueRewardClick(issue)}
-                      title="Issue official reward to this student and move to Previous Winners"
-                    >
-                      <Gift size={13} /> Issue Reward
-                    </button>
-                  )}
-
-                  <div className="status-dot">
-                    <div className={`dot dot-${issue.status || 'open'}`} />
-                    {(issue.status || 'open').replace('_', ' ')}
-                  </div>
-                </div>
-              </div>
-
-              {/* Problem Description */}
-              <div style={{ margin: '14px 0' }}>
-                <div style={{ fontSize: 13, color: 'var(--accent2)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                  <MapPin size={14} /> {issue.place || 'Campus'}
-                </div>
-                <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', lineHeight: 1.4 }}>
-                  {issue.representative_issue}
-                </h3>
-              </div>
-
-              {/* 🏆 First Raiser Reward Spotlight Box */}
-              <div className="reward-spotlight-box">
-                <div className="reward-badge-pill">
-                  <Trophy size={14} color="#f59e0b" />
-                  <span>🏆 FIRST RAISER REWARD WINNER</span>
-                </div>
-
-                <div className="reward-content">
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>
-                      Award Recipient (First Submitted By)
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>
-                      {hasRaiserName ? issue.first_raiser_name : 'Anonymous Person (Unclaimed Reward)'}
-                    </div>
-                    {hasRaiserEmail && (
-                      <div style={{ fontSize: 13, color: 'var(--accent)', marginTop: 2 }}>
-                        ✉ {issue.first_raiser_email}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
-                    {rank === 1 && (
-                      <button
-                        className="btn-issue-reward-prominent"
-                        onClick={() => handleIssueRewardClick(issue)}
-                        style={{ marginBottom: 6 }}
-                      >
-                        <Gift size={13} /> Issue Reward to Student
-                      </button>
-                    )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                      <Clock size={13} /> First reported
-                    </div>
-                    <div style={{ fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>
-                      {issue.created_at ? new Date(issue.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Earlier'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                <button className="btn" onClick={() => onOpenSolutions(issue)}>
-                  Solutions ({issue.total_solutions || 0})
-                </button>
-                <button className="btn btn-resolve" onClick={() => onOpenResolve(issue)}>
-                  ✓ Resolve Issue
-                </button>
-                <button className="btn btn-primary" onClick={() => onOpenStatus(issue)}>
-                  Update Status
-                </button>
-              </div>
-            </div>
-          );
-        })}
+        {issues.slice(0, 10).map((issue, idx) => (
+          <TopTicketCard
+            key={issue.id}
+            issue={issue}
+            rank={idx + 1}
+            onOpenSolutions={onOpenSolutions}
+            onOpenResolve={onOpenResolve}
+            onOpenStatus={onOpenStatus}
+            onIssueReward={handleIssueRewardClick}
+          />
+        ))}
       </div>
     </div>
   );
