@@ -53,11 +53,29 @@ export interface ResolvedIssue {
   media_url?: string;
   status: IssueStatus;
   created_at?: string;
+  issue_duration?: string;
+  frequency?: number;
+  first_raiser_name?: string;
+  first_raiser_email?: string;
   days_open: number;
   resolved_by?: string;
   resolution_note?: string;
   proof_media_url?: string;
   resolved_at?: string;
+}
+
+export interface TicketWinner extends Issue {}
+
+export interface SolutionWinner extends TopSolution {
+  media_url?: string;
+  first_raiser_name?: string;
+  first_raiser_email?: string;
+  issue_created_at?: string;
+}
+
+export interface WinnersData {
+  ticket_winners: TicketWinner[];
+  solution_winners: SolutionWinner[];
 }
 
 export interface ResolutionRecord {

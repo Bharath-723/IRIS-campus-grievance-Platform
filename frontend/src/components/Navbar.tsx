@@ -1,6 +1,6 @@
 import React from 'react';
 import { DashboardStats } from '../types';
-import { Sun, Moon, LayoutGrid, Flame, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Sun, Moon, LayoutGrid, Flame, Sparkles, CheckCircle2, Trophy } from 'lucide-react';
 
 interface NavbarProps {
   stats: DashboardStats;
@@ -8,8 +8,8 @@ interface NavbarProps {
   onToggleTheme: () => void;
   activeStatus: string;
   onSelectStatus: (status: string) => void;
-  activeTab: 'all' | 'top_tickets' | 'top_solutions' | 'resolved';
-  onSelectTab: (tab: 'all' | 'top_tickets' | 'top_solutions' | 'resolved') => void;
+  activeTab: 'all' | 'top_tickets' | 'top_solutions' | 'resolved' | 'previous_winners';
+  onSelectTab: (tab: 'all' | 'top_tickets' | 'top_solutions' | 'resolved' | 'previous_winners') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -53,6 +53,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onSelectTab('resolved')}
           >
             <CheckCircle2 size={15} color="var(--low)" /> Resolved ({stats.resolved})
+          </button>
+          <button
+            className={`nav-tab-btn ${activeTab === 'previous_winners' ? 'active' : ''}`}
+            onClick={() => onSelectTab('previous_winners')}
+          >
+            <Trophy size={15} color="#eab308" /> Previous Winners
           </button>
         </div>
       </div>

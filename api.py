@@ -447,6 +447,10 @@ def get_resolved_issues():
                 ai.place,
                 ai.representative_issue,
                 ai.severity_level,
+                ai.issue_duration,
+                ai.frequency,
+                ai.first_raiser_name,
+                ai.first_raiser_email,
                 ai.ai_category,
                 ai.media_url,
                 ai.status,
@@ -476,6 +480,157 @@ def get_resolved_issues():
             records.append(d)
         conn.close()
         return jsonify({'success': True, 'issues': records})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── GET single issue with details ──
+@app.route('/api/issues/<int:issue_id>', methods=['GET'])
+def get_single_issue(issue_id):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                ai.id,
+                ai.place,
+                ai.representative_issue,
+                ai.severity_level,
+                ai.issue_duration,
+                ai.frequency,
+                ai.first_raiser_name,
+                ai.first_raiser_email,
+                ai.media_url,
+                ai.status,
+                ai.created_at,
+                ai.ai_category,
+                ai.ai_best_solution,
+                ai.ai_best_solution_id,
+                ai.ai_reason,
+                COALESCE(EXTRACT(DAY FROM (NOW() - ai.created_at))::INT, 0)   AS days_open,
+                COUNT(s.id)                                                   AS total_solutions,
+                COALESCE(SUM(CASE WHEN s.wants_reward THEN 1 ELSE 0 END), 0) AS reward_seekers
+            FROM accepted_issues ai
+            LEFT JOIN solutions s ON s.issue_id = ai.id
+            WHERE ai.id = %s
+            GROUP BY
+                ai.id, ai.place, ai.representative_issue,
+                ai.severity_level, ai.issue_duration,
+                ai.frequency, ai.first_raiser_name,
+                ai.first_raiser_email, ai.media_url,
+                ai.status, ai.created_at,
+                ai.ai_category, ai.ai_best_solution,
+                ai.ai_best_solution_id, ai.ai_reason
+        """, (issue_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Issue not found'}), 404
+        cols = [c[0] for c in cursor.description]
+        d = dict(zip(cols, row))
+        if d.get('created_at'):
+            d['created_at'] = str(d['created_at'])
+        conn.close()
+        return jsonify({'success': True, 'issue': d})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── GET Previous Winners (Ticket Raisers + Solution Winners) ──
+@app.route('/api/winners', methods=['GET'])
+def get_previous_winners():
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # 1. Top Ticket Raiser Winners (Top repeated consensus issues, first student who raised it)
+        cursor.execute("""
+            SELECT
+                ai.id,
+                ai.place,
+                ai.representative_issue,
+                ai.severity_level,
+                ai.issue_duration,
+                ai.frequency,
+                ai.first_raiser_name,
+                ai.first_raiser_email,
+                ai.media_url,
+                ai.status,
+                ai.created_at,
+                ai.ai_category,
+                ai.ai_suggested_solution,
+                COALESCE(EXTRACT(DAY FROM (NOW() - ai.created_at))::INT, 0) AS days_open,
+                COUNT(s.id) AS total_solutions
+            FROM accepted_issues ai
+            LEFT JOIN solutions s ON s.issue_id = ai.id
+            GROUP BY
+                ai.id, ai.place, ai.representative_issue,
+                ai.severity_level, ai.issue_duration,
+                ai.frequency, ai.first_raiser_name,
+                ai.first_raiser_email, ai.media_url,
+                ai.status, ai.created_at,
+                ai.ai_category, ai.ai_suggested_solution
+            ORDER BY ai.frequency DESC, ai.created_at ASC, ai.id ASC
+            LIMIT 10;
+        """)
+        ticket_rows = cursor.fetchall()
+        t_cols = [c[0] for c in cursor.description]
+        ticket_winners = []
+        for row in ticket_rows:
+            d = dict(zip(t_cols, row))
+            if d.get('created_at'):
+                d['created_at'] = str(d['created_at'])
+            ticket_winners.append(d)
+
+        # 2. Best Solution Contribution Winners (AI & community selected best solutions)
+        cursor.execute("""
+            SELECT
+                s.id,
+                s.issue_id,
+                s.solution_text,
+                s.submitter_name,
+                s.submitter_email,
+                COALESCE(s.ai_score, 0) AS ai_score,
+                s.ai_selected,
+                s.wants_reward,
+                s.is_unique,
+                s.reward_given,
+                s.submitted_at,
+                ai.representative_issue,
+                ai.place,
+                ai.severity_level,
+                ai.ai_category,
+                ai.media_url,
+                ai.first_raiser_name,
+                ai.first_raiser_email,
+                ai.created_at AS issue_created_at
+            FROM solutions s
+            JOIN accepted_issues ai ON s.issue_id = ai.id
+            WHERE LOWER(TRIM(s.solution_text)) NOT IN ('no solution', 'none', 'no', 'n/a', '')
+            ORDER BY
+                (CASE WHEN s.ai_selected THEN 1 ELSE 0 END) DESC,
+                s.ai_score DESC,
+                LENGTH(s.solution_text) DESC,
+                s.id ASC
+            LIMIT 10;
+        """)
+        solution_rows = cursor.fetchall()
+        s_cols = [c[0] for c in cursor.description]
+        solution_winners = []
+        for row in solution_rows:
+            d = dict(zip(s_cols, row))
+            if d.get('submitted_at'):
+                d['submitted_at'] = str(d['submitted_at'])
+            if d.get('issue_created_at'):
+                d['issue_created_at'] = str(d['issue_created_at'])
+            solution_winners.append(d)
+
+        conn.close()
+        return jsonify({
+            'success': True,
+            'ticket_winners': ticket_winners,
+            'solution_winners': solution_winners
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { DashboardStats, Issue, ResolvedIssue, TopSolution } from './types';
-import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, fetchResolvedIssues, markSolutionUnique } from './services/api';
+import { DashboardStats, Issue, ResolvedIssue, TopSolution, WinnersData } from './types';
+import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, fetchResolvedIssues, fetchWinners, markSolutionUnique } from './services/api';
 import { Navbar } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { IssueCard } from './components/IssueCard';
 import { TopTicketsView } from './components/TopTicketsView';
 import { TopSolutionsView } from './components/TopSolutionsView';
 import { ResolvedIssuesView } from './components/ResolvedIssuesView';
+import { PreviousWinnersView } from './components/PreviousWinnersView';
+import { IssueDetailModal } from './components/IssueDetailModal';
 import { SolutionsModal } from './components/SolutionsModal';
 import { StatusModal } from './components/StatusModal';
 import { ResolveModal } from './components/ResolveModal';
@@ -16,6 +18,10 @@ export const App: React.FC = () => {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [topIssues, setTopIssues] = useState<Issue[]>([]);
   const [resolvedIssues, setResolvedIssues] = useState<ResolvedIssue[]>([]);
+  const [winnersData, setWinnersData] = useState<WinnersData>({
+    ticket_winners: [],
+    solution_winners: [],
+  });
   const [topSolutionsData, setTopSolutionsData] = useState<{
     winner: TopSolution | null;
     solutions: TopSolution[];
@@ -32,7 +38,7 @@ export const App: React.FC = () => {
     return (localStorage.getItem('iris_theme') as 'dark' | 'light') || 'dark';
   });
 
-  const [activeTab, setActiveTab] = useState<'all' | 'top_tickets' | 'top_solutions' | 'resolved'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'top_tickets' | 'top_solutions' | 'resolved' | 'previous_winners'>('all');
   const [activeSeverity, setActiveSeverity] = useState('all');
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeStatus, setActiveStatus] = useState('all');
@@ -42,22 +48,25 @@ export const App: React.FC = () => {
   const [solutionsIssue, setSolutionsIssue] = useState<Issue | null>(null);
   const [statusIssue, setStatusIssue] = useState<Issue | null>(null);
   const [resolveIssue, setResolveIssue] = useState<Issue | null>(null);
+  const [inspectIssue, setInspectIssue] = useState<Issue | null>(null);
   const [lightboxData, setLightboxData] = useState<{ url: string; caption: string } | null>(null);
 
   const loadData = async () => {
     try {
-      const [fetchedIssues, fetchedStats, fetchedTopIssues, fetchedTopSolutions, fetchedResolved] = await Promise.all([
+      const [fetchedIssues, fetchedStats, fetchedTopIssues, fetchedTopSolutions, fetchedResolved, fetchedWinners] = await Promise.all([
         fetchIssues(),
         fetchStats(),
         fetchTopIssues(),
         fetchTopSolutions(),
         fetchResolvedIssues(),
+        fetchWinners(),
       ]);
       setIssues(fetchedIssues);
       setStats(fetchedStats);
       setTopIssues(fetchedTopIssues);
       setTopSolutionsData(fetchedTopSolutions);
       setResolvedIssues(fetchedResolved);
+      setWinnersData(fetchedWinners);
     } catch (e) {
       console.error('Error loading data:', e);
     }
@@ -203,7 +212,21 @@ export const App: React.FC = () => {
             onOpenLightbox={(url, caption) => setLightboxData({ url, caption })}
           />
         )}
+
+        {activeTab === 'previous_winners' && (
+          <PreviousWinnersView
+            ticketWinners={winnersData.ticket_winners}
+            solutionWinners={winnersData.solution_winners}
+            onInspectIssue={setInspectIssue}
+          />
+        )}
       </main>
+
+      <IssueDetailModal
+        issue={inspectIssue}
+        onClose={() => setInspectIssue(null)}
+        onOpenLightbox={(url, caption) => setLightboxData({ url, caption })}
+      />
 
       <SolutionsModal issue={solutionsIssue} onClose={() => setSolutionsIssue(null)} />
 
