@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { DashboardStats, Issue, ResolvedIssue, TopSolution, WinnersData } from './types';
-import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, fetchResolvedIssues, fetchWinners, markSolutionUnique, issueTicketReward, issueSolutionReward } from './services/api';
+import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, fetchResolvedIssues, fetchWinners, markSolutionUnique, issueTicketReward, issueSolutionReward, triggerSync } from './services/api';
 import { Navbar } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { IssueCard } from './components/IssueCard';
@@ -43,6 +43,7 @@ export const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeStatus, setActiveStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Modals state
   const [solutionsIssue, setSolutionsIssue] = useState<Issue | null>(null);
@@ -72,9 +73,28 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      await triggerSync();
+      await loadData();
+    } catch (err) {
+      console.error('Manual sync notice:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(async () => {
+      try {
+        await triggerSync();
+      } catch (e) {
+        // quiet background sync
+      }
+      await loadData();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -161,6 +181,8 @@ export const App: React.FC = () => {
         onSelectStatus={setActiveStatus}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
+        onSync={handleManualSync}
+        isSyncing={isSyncing}
       />
 
       {activeTab === 'all' && (

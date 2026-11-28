@@ -1240,3 +1240,26 @@ main {
   color: var(--low);
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+.btn-sync-sheet {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+.btn-sync-sheet:hover:not(:disabled) {
+  background: var(--surface3);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-sync-sheet:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

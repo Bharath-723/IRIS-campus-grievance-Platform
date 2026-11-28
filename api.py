@@ -800,10 +800,41 @@ def get_previous_winners():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ── GOOGLE SHEETS LIVE SYNC ENDPOINT ──
+@app.route('/api/sync', methods=['POST', 'GET'])
+def trigger_google_sheet_sync():
+    try:
+        from sync import sync
+        sync()
+        return jsonify({'success': True, 'message': 'Google Sheets synchronized successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def start_background_sync(is_debug):
+    import threading
+    import time
+    def worker():
+        time.sleep(3)
+        while True:
+            try:
+                from sync import sync
+                sync()
+            except Exception as e:
+                print(f"[Auto-Sync Notice]: {e}")
+            time.sleep(30)
+
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not is_debug:
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        print("✓ Background Google Sheet sync thread started (auto-syncing every 30s)")
+
+
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5000))
     host = os.getenv("HOST", "0.0.0.0")
     debug = os.getenv("DEBUG", "True").lower() in ("true", "1")
+    start_background_sync(debug)
     print(f"API running at http://localhost:{port}")
     print(f"Dashboard available at http://localhost:{port}/")
     print(f"Test API: http://localhost:{port}/api/issues")

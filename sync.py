@@ -79,51 +79,17 @@ def categorize_by_rules(text, place=''):
 def ai_analyze_issue(issue_text, place):
     """
     Returns: category, priority_score, ai_suggested_solution
-    Uses Gemini AI if available; otherwise falls back to smart rule-based categorizer.
+    Uses ai_advisor (Gemini AI + domain heuristics) for fast, context-aware action plans.
     """
-    cat_rule, score_rule, sol_rule = categorize_by_rules(issue_text, place)
-
-    prompt = f"""You are an AI assistant for a college campus issue management system.
-
-Analyze this campus issue and respond ONLY with a valid JSON object, no markdown, no extra text:
-
-Issue: "{issue_text}"
-Location: "{place}"
-
-JSON format (strictly follow this):
-{{
-  "category": "{cat_rule}",
-  "priority_score": {score_rule},
-  "ai_suggested_solution": "{sol_rule}"
-}}
-
-Rules:
-- category: MUST be exactly one of: Infrastructure, Hygiene, Technology, Safety, Admin
-- priority_score: integer 1 to 10 (10 = most critical)
-- ai_suggested_solution: AI's own practical solution in 1 clear sentence, max 20 words, actionable and specific to the issue
-- Return ONLY the JSON object, absolutely nothing else"""
-
-    response = gemini_ask(prompt)
-    if not response:
-        print(f"     → [Rule Categorizer] [{cat_rule}] Priority:{score_rule}/10 | Solution: {sol_rule[:60]}...")
-        return cat_rule, score_rule, sol_rule
+    cat_rule, score_rule, _ = categorize_by_rules(issue_text, place)
     try:
-        clean = response.replace("```json", "").replace("```", "").strip()
-        start = clean.find("{")
-        end   = clean.rfind("}") + 1
-        if start >= 0 and end > start:
-            clean = clean[start:end]
-        data  = json.loads(clean)
-        cat   = data.get("category", cat_rule)
-        if cat not in ["Infrastructure", "Hygiene", "Technology", "Safety", "Admin"]:
-            cat = cat_rule
-        score = min(10, max(1, int(data.get("priority_score", score_rule))))
-        sol   = data.get("ai_suggested_solution", sol_rule)
-        print(f"     → [{cat}] Priority:{score}/10 | AI solution: {sol[:60]}...")
-        return cat, score, sol
+        from ai_advisor import generate_smart_solution
+        sol, _ = generate_smart_solution(issue_text, place, cat_rule)
+        return cat_rule, score_rule, sol
     except Exception as e:
-        print(f"  ⚠ Gemini parse error: {e} | using rule-based categorization")
-        return cat_rule, score_rule, sol_rule
+        print(f"  ⚠ AI analysis fallback: {e}")
+        _, _, sol_fallback = categorize_by_rules(issue_text, place)
+        return cat_rule, score_rule, sol_fallback
 
 
 def ai_pick_best_solution(issue_text, solutions):
@@ -420,7 +386,7 @@ def run_ai_enrichment(cursor):
     2. Pick best student solution from submissions
     Processes max 10 issues per sync cycle to avoid Gemini 429 rate limit.
     """
-    AI_DELAY       = 5    # seconds between each Gemini call
+    AI_DELAY       = 0.5    # fast delay between calls
     MAX_PER_CYCLE  = 10   # max issues to process per 30s sync cycle
 
     # ── Step 1: AI enrichment for issues missing ai_suggested_solution ──

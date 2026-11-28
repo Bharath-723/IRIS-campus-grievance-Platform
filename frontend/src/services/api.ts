@@ -152,6 +152,13 @@ export async function requestAiRecommendation(issueId: number): Promise<{
   };
 }
 
+export async function triggerSync(): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/sync`, { method: 'POST' });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to sync Google Sheet');
+  return data;
+}
+
 export function getImageUrl(url?: string): string {
   if (!url) return '';
   const match = url.match(/id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);

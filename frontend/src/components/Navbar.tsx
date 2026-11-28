@@ -1,6 +1,6 @@
 import React from 'react';
 import { DashboardStats } from '../types';
-import { Sun, Moon, LayoutGrid, Flame, Sparkles, CheckCircle2, Trophy } from 'lucide-react';
+import { Sun, Moon, LayoutGrid, Flame, Sparkles, CheckCircle2, Trophy, RefreshCw } from 'lucide-react';
 
 interface NavbarProps {
   stats: DashboardStats;
@@ -10,6 +10,8 @@ interface NavbarProps {
   onSelectStatus: (status: string) => void;
   activeTab: 'all' | 'top_tickets' | 'top_solutions' | 'resolved' | 'previous_winners';
   onSelectTab: (tab: 'all' | 'top_tickets' | 'top_solutions' | 'resolved' | 'previous_winners') => void;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -20,6 +22,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectStatus,
   activeTab,
   onSelectTab,
+  onSync,
+  isSyncing = false,
 }) => {
   return (
     <header>
@@ -111,6 +115,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hstat-lbl">Resolved</div>
           </div>
         </div>
+
+        {onSync && (
+          <button
+            className="theme-toggle-btn btn-sync-sheet"
+            onClick={onSync}
+            disabled={isSyncing}
+            title="Sync with Google Sheets form responses immediately"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+          >
+            <RefreshCw size={14} className={isSyncing ? 'spin-icon' : ''} />
+            <span>{isSyncing ? 'Syncing...' : 'Sync Sheet'}</span>
+          </button>
+        )}
 
         <button className="theme-toggle-btn" onClick={onToggleTheme} title="Toggle theme">
           {theme === 'dark' ? (
