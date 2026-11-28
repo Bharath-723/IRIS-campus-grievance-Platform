@@ -137,6 +137,21 @@ export async function uploadResolutionProof(file: File): Promise<{
   return data;
 }
 
+export async function requestAiRecommendation(issueId: number): Promise<{
+  ai_suggested_solution: string;
+  ai_reason: string;
+}> {
+  const res = await fetch(`${API_BASE}/issues/${issueId}/ai-recommend`, {
+    method: 'POST',
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to generate AI solution');
+  return {
+    ai_suggested_solution: data.ai_suggested_solution,
+    ai_reason: data.ai_reason,
+  };
+}
+
 export function getImageUrl(url?: string): string {
   if (!url) return '';
   const match = url.match(/id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);

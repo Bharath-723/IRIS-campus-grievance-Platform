@@ -5,6 +5,8 @@ from flask import Flask, jsonify, request, send_from_directory, Response
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from db import get_db
+from mailer import send_resolution_email
+from ai_advisor import generate_smart_solution
 
 try:
     from dotenv import load_dotenv
@@ -183,6 +185,7 @@ def get_issues():
                 ai.status,
                 ai.created_at,
                 ai.ai_category,
+                ai.ai_suggested_solution,
                 ai.ai_best_solution,
                 ai.ai_best_solution_id,
                 ai.ai_reason,
@@ -197,7 +200,8 @@ def get_issues():
                 ai.frequency, ai.first_raiser_name,
                 ai.first_raiser_email, ai.media_url,
                 ai.status, ai.created_at,
-                ai.ai_category, ai.ai_best_solution,
+                ai.ai_category, ai.ai_suggested_solution,
+                ai.ai_best_solution,
                 ai.ai_best_solution_id, ai.ai_reason
             ORDER BY
                 CASE ai.severity_level
@@ -289,7 +293,7 @@ def mark_unique(solution_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ── ADD resolution proof ──
+# ── ADD resolution proof & notify reporter via email ──
 @app.route('/api/issues/<int:issue_id>/resolve', methods=['POST'])
 def add_resolution_proof(issue_id):
     try:
@@ -300,6 +304,14 @@ def add_resolution_proof(issue_id):
 
         conn   = get_db()
         cursor = conn.cursor()
+
+        # Fetch issue details for email notification
+        cursor.execute("""
+            SELECT representative_issue, place, first_raiser_name, first_raiser_email
+            FROM accepted_issues
+            WHERE id = %s
+        """, (issue_id,))
+        issue_info = cursor.fetchone()
 
         # Insert into resolved_issues
         cursor.execute("""
@@ -323,7 +335,62 @@ def add_resolution_proof(issue_id):
 
         conn.commit()
         conn.close()
-        return jsonify({'success': True, 'message': 'Resolution proof added'})
+
+        # Dispatch email notification with proof to the student who raised the ticket
+        if issue_info:
+            rep_issue, place, raiser_name, raiser_email = issue_info
+            try:
+                send_resolution_email(
+                    to_email=raiser_email,
+                    recipient_name=raiser_name,
+                    issue_title=rep_issue,
+                    place=place,
+                    resolved_by=resolved_by,
+                    resolution_note=resolution_note,
+                    proof_url=proof_media_url,
+                    issue_id=issue_id
+                )
+            except Exception as mail_err:
+                print(f"Notification error: {mail_err}")
+
+        return jsonify({'success': True, 'message': 'Resolution proof added and student notified'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── GENERATE / REFRESH AI SOLUTION RECOMMENDATION ──
+@app.route('/api/issues/<int:issue_id>/ai-recommend', methods=['POST'])
+def ai_recommend_solution(issue_id):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT representative_issue, place, ai_category
+            FROM accepted_issues
+            WHERE id = %s
+        """, (issue_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Issue not found'}), 404
+
+        rep_issue, place, category = row
+        sol, reason = generate_smart_solution(rep_issue, place, category)
+
+        cursor.execute("""
+            UPDATE accepted_issues
+            SET ai_suggested_solution = %s,
+                ai_reason = %s,
+                updated_at = NOW()
+            WHERE id = %s
+        """, (sol, reason, issue_id))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            'success': True,
+            'ai_suggested_solution': sol,
+            'ai_reason': reason
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

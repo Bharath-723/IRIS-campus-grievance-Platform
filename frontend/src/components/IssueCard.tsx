@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Issue } from '../types';
-import { getImageUrl } from '../services/api';
-import { MapPin, Clock, Calendar, Users } from 'lucide-react';
+import { getImageUrl, requestAiRecommendation } from '../services/api';
+import { MapPin, Clock, Calendar, Users, Sparkles } from 'lucide-react';
 
 interface IssueCardProps {
   issue: Issue;
@@ -96,6 +96,31 @@ export const IssueCard: React.FC<IssueCardProps> = ({
   const imageUrl = getImageUrl(issue.media_url);
   const reporter = getReporterDisplay(issue.first_raiser_name, issue.first_raiser_email);
 
+  const [currentSolution, setCurrentSolution] = useState(
+    issue.ai_best_solution || issue.ai_suggested_solution || ''
+  );
+  const [currentReason, setCurrentReason] = useState(issue.ai_reason || '');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  useEffect(() => {
+    setCurrentSolution(issue.ai_best_solution || issue.ai_suggested_solution || '');
+    setCurrentReason(issue.ai_reason || '');
+  }, [issue.ai_best_solution, issue.ai_suggested_solution, issue.ai_reason]);
+
+  const handleRefreshAi = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsGeneratingAi(true);
+    try {
+      const res = await requestAiRecommendation(issue.id);
+      setCurrentSolution(res.ai_suggested_solution);
+      setCurrentReason(res.ai_reason);
+    } catch (err) {
+      alert('Could not refresh AI recommendation: ' + err);
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
   return (
     <div className="card">
       <div className="card-media">
@@ -145,13 +170,29 @@ export const IssueCard: React.FC<IssueCardProps> = ({
           {issue.representative_issue || 'No description provided'}
         </div>
 
-        {issue.ai_best_solution && (
-          <div className="ai-solution-box">
-            <div className="ai-solution-label">🤖 AI Recommended Solution</div>
-            <div className="ai-solution-text">{issue.ai_best_solution}</div>
-            {issue.ai_reason && <div className="ai-reason">{issue.ai_reason}</div>}
+        {/* 🤖 AI Recommended Solution Proposal */}
+        <div className="ai-solution-box">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="ai-solution-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Sparkles size={13} color="var(--ai)" />
+              <span>{issue.ai_best_solution ? '👑 Top Crowd Solution (AI Verified)' : '🤖 AI Recommended Solution'}</span>
+            </div>
+            <button
+              className="btn-refresh-ai"
+              onClick={handleRefreshAi}
+              disabled={isGeneratingAi}
+              title="Re-run AI solution engine for this issue"
+            >
+              {isGeneratingAi ? 'Thinking...' : '✨ Ask AI'}
+            </button>
           </div>
-        )}
+
+          <div className="ai-solution-text" style={{ marginTop: 6, lineHeight: 1.45 }}>
+            {currentSolution || 'Analyzing optimal campus resolution strategy...'}
+          </div>
+
+          {currentReason && <div className="ai-reason" style={{ marginTop: 4 }}>{currentReason}</div>}
+        </div>
 
         <div className="card-meta">
           <div className="meta-item">

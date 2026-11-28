@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ResolvedIssue } from '../types';
 import { getImageUrl } from '../services/api';
-import { CheckCircle2, MapPin, Calendar, UserCheck, ShieldCheck, Image as ImageIcon, Video, User, Mail, Clock, X, ExternalLink, Award } from 'lucide-react';
+import { CheckCircle2, MapPin, Calendar, UserCheck, ShieldCheck, Image as ImageIcon, Video, User, Mail, Clock, X, ExternalLink, Award, Search, Filter } from 'lucide-react';
 
 interface ResolvedIssuesViewProps {
   issues: ResolvedIssue[];
   onOpenLightbox: (imageUrl: string, title: string) => void;
 }
+
+export type ResolvedTimeFilter =
+  | 'all'
+  | 'today'
+  | 'this_month'
+  | 'last_month'
+  | 'last_3_months'
+  | 'last_6_months'
+  | 'last_year';
 
 function getCategoryIcon(cat?: string): string {
   if (!cat) return '📌';
@@ -58,14 +67,84 @@ function formatReporter(name?: string, email?: string) {
   return { initials: getInitials(cleanName), name: cleanName, email: realEmail };
 }
 
+function matchesTimeFilter(issue: ResolvedIssue, filter: ResolvedTimeFilter): boolean {
+  if (filter === 'all') return true;
+
+  const dateStr = issue.resolved_at || issue.created_at;
+  if (!dateStr) return true;
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (filter === 'today') {
+    return (
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear()
+    );
+  }
+
+  if (filter === 'this_month') {
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+
+  if (filter === 'last_month') {
+    const targetMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+    const targetYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+  }
+
+  if (filter === 'last_3_months') {
+    return diffDays <= 90;
+  }
+
+  if (filter === 'last_6_months') {
+    return diffDays <= 180;
+  }
+
+  if (filter === 'last_year') {
+    return diffDays <= 365;
+  }
+
+  return true;
+}
+
 export const ResolvedIssuesView: React.FC<ResolvedIssuesViewProps> = ({
   issues,
   onOpenLightbox,
 }) => {
   const [selectedIssue, setSelectedIssue] = useState<ResolvedIssue | null>(null);
+  const [timeFilter, setTimeFilter] = useState<ResolvedTimeFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Counts for filters
+  const counts = useMemo(() => {
+    return {
+      all: issues.length,
+      today: issues.filter((i) => matchesTimeFilter(i, 'today')).length,
+      this_month: issues.filter((i) => matchesTimeFilter(i, 'this_month')).length,
+      last_month: issues.filter((i) => matchesTimeFilter(i, 'last_month')).length,
+      last_3_months: issues.filter((i) => matchesTimeFilter(i, 'last_3_months')).length,
+      last_6_months: issues.filter((i) => matchesTimeFilter(i, 'last_6_months')).length,
+      last_year: issues.filter((i) => matchesTimeFilter(i, 'last_year')).length,
+    };
+  }, [issues]);
+
+  const filteredIssues = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return issues.filter((issue) => {
+      if (!matchesTimeFilter(issue, timeFilter)) return false;
+      if (q) {
+        const text = `${issue.representative_issue} ${issue.place} ${issue.resolved_by || ''} ${issue.resolution_note || ''} ${issue.first_raiser_name || ''}`.toLowerCase();
+        if (!text.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [issues, timeFilter, searchQuery]);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Banner */}
       <div className="top-banner">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -74,27 +153,147 @@ export const ResolvedIssuesView: React.FC<ResolvedIssuesViewProps> = ({
           </div>
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
-              ✅ Resolved Campus Grievances
+              ✅ Resolved Campus Grievances Archive
             </h2>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-              Completed grievances resolved and verified by club teams and facilities management. <strong>Click on any resolved card</strong> to inspect the first student who raised the issue, their email, submission date, and complete resolution history.
+              Completed grievances verified by club teams and facilities management. Resolved tickets are archived here and removed from the active dashboard. <strong>Click on any card</strong> to view original submitter details and resolution history.
             </p>
           </div>
         </div>
       </div>
 
+      {/* ── FILTER TOOLBAR (Daily, Monthly, Last Month, 3M, 6M, 1Y, Total) ── */}
+      <div className="resolved-filter-bar">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginRight: 4 }}>
+              <Filter size={13} /> Timeframe:
+            </span>
+
+            <button
+              className={`filter-btn ${timeFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setTimeFilter('all')}
+            >
+              All Time ({counts.all})
+            </button>
+            <button
+              className={`filter-btn ${timeFilter === 'today' ? 'active' : ''}`}
+              onClick={() => setTimeFilter('today')}
+            >
+              Today ({counts.today})
+            </button>
+            <button
+              className={`filter-btn ${timeFilter === 'this_month' ? 'active' : ''}`}
+              onClick={() => setTimeFilter('this_month')}
+            >
+              This Month ({counts.this_month})
+            </button>
+            <button
+              className={`filter-btn ${timeFilter === 'last_month' ? 'active' : ''}`}
+              onClick={() => setTimeFilter('last_month')}
+            >
+              Last Month ({counts.last_month})
+            </button>
+            <button
+              className={`filter-btn ${timeFilter === 'last_3_months' ? 'active' : ''}`}
+              onClick={() => setTimeFilter('last_3_months')}
+            >
+              Last 3 Months ({counts.last_3_months})
+            </button>
+            <button
+              className={`filter-btn ${timeFilter === 'last_6_months' ? 'active' : ''}`}
+              onClick={() => setTimeFilter('last_6_months')}
+            >
+              Last 6 Months ({counts.last_6_months})
+            </button>
+            <button
+              className={`filter-btn ${timeFilter === 'last_year' ? 'active' : ''}`}
+              onClick={() => setTimeFilter('last_year')}
+            >
+              Last 1 Year ({counts.last_year})
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 220, maxWidth: 320 }}>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                placeholder="Search location, problem..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '7px 10px 7px 30px',
+                  borderRadius: 20,
+                  fontSize: 12,
+                  background: 'var(--surface2)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Status Count Indicator */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <span>Showing <strong>{filteredIssues.length}</strong> of <strong>{issues.length}</strong> resolved grievance(s)</span>
+          {timeFilter !== 'all' && (
+            <button
+              onClick={() => setTimeFilter('all')}
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
+            >
+              Reset to All Time
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* List or Empty State */}
-      {issues.length === 0 ? (
+      {filteredIssues.length === 0 ? (
         <div className="empty-state">
-          <div style={{ fontSize: 44, marginBottom: 12, opacity: 0.7 }}>🎉</div>
-          <h3 style={{ fontSize: 18, color: 'var(--text)', marginBottom: 6 }}>No Resolved Tickets Yet</h3>
-          <p>
-            When club members resolve complaints and submit proof from the main dashboard, they will automatically appear here!
+          <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.7 }}>🔍</div>
+          <h3 style={{ fontSize: 17, color: 'var(--text)', marginBottom: 6 }}>No Resolved Grievances Match This Filter</h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            {issues.length === 0
+              ? 'When club members resolve complaints and submit proof, they will appear here.'
+              : 'Try selecting a broader timeframe like "All Time" or clearing your search.'}
           </p>
+          {issues.length > 0 && (
+            <button
+              className="btn"
+              style={{ marginTop: 12, fontSize: 12 }}
+              onClick={() => {
+                setTimeFilter('all');
+                setSearchQuery('');
+              }}
+            >
+              Show All Resolved Tickets
+            </button>
+          )}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 20 }}>
-          {issues.map((issue) => {
+          {filteredIssues.map((issue) => {
             const complaintImg = getImageUrl(issue.media_url);
             const proofImg = getImageUrl(issue.proof_media_url);
             const isVideoProof = Boolean(issue.proof_media_url && /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(issue.proof_media_url));
@@ -105,7 +304,7 @@ export const ResolvedIssuesView: React.FC<ResolvedIssuesViewProps> = ({
                   day: 'numeric',
                   year: 'numeric',
                 })
-              : 'Unknown date';
+              : 'Earlier';
 
             return (
               <div
