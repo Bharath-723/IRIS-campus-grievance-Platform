@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ResolvedIssue } from '../types';
 import { getImageUrl } from '../services/api';
-import { CheckCircle2, MapPin, Calendar, UserCheck, ShieldCheck, Image as ImageIcon, User, Mail, Clock, X, ExternalLink, Award } from 'lucide-react';
+import { CheckCircle2, MapPin, Calendar, UserCheck, ShieldCheck, Image as ImageIcon, Video, User, Mail, Clock, X, ExternalLink, Award } from 'lucide-react';
 
 interface ResolvedIssuesViewProps {
   issues: ResolvedIssue[];
@@ -97,6 +97,7 @@ export const ResolvedIssuesView: React.FC<ResolvedIssuesViewProps> = ({
           {issues.map((issue) => {
             const complaintImg = getImageUrl(issue.media_url);
             const proofImg = getImageUrl(issue.proof_media_url);
+            const isVideoProof = Boolean(issue.proof_media_url && /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(issue.proof_media_url));
             const reporter = formatReporter(issue.first_raiser_name, issue.first_raiser_email);
             const raisedDate = issue.created_at
               ? new Date(issue.created_at).toLocaleDateString(undefined, {
@@ -210,17 +211,31 @@ export const ResolvedIssuesView: React.FC<ResolvedIssuesViewProps> = ({
                   </div>
 
                   {proofImg && (
-                    <button
-                      className="btn btn-resolve"
-                      style={{ marginTop: 8, width: '100%', fontSize: 11, padding: '5px' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenLightbox(proofImg, `Resolution Proof — ${issue.place}`);
-                      }}
-                    >
-                      <ImageIcon size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />
-                      View Resolution Proof Photo ↗
-                    </button>
+                    isVideoProof ? (
+                      <a
+                        href={proofImg}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-resolve"
+                        style={{ marginTop: 8, width: '100%', fontSize: 11, padding: '6px', textAlign: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Video size={13} />
+                        Watch Resolution Video Proof ↗
+                      </a>
+                    ) : (
+                      <button
+                        className="btn btn-resolve"
+                        style={{ marginTop: 8, width: '100%', fontSize: 11, padding: '5px' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenLightbox(proofImg, `Resolution Proof — ${issue.place}`);
+                        }}
+                      >
+                        <ImageIcon size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />
+                        View Resolution Proof Photo ↗
+                      </button>
+                    )
                   )}
                 </div>
 
@@ -366,13 +381,26 @@ export const ResolvedIssuesView: React.FC<ResolvedIssuesViewProps> = ({
                 </div>
                 {selectedIssue.proof_media_url && (
                   <div style={{ marginTop: 12 }}>
-                    <button
-                      className="btn btn-resolve"
-                      style={{ fontSize: 12, padding: '6px 12px' }}
-                      onClick={() => onOpenLightbox(getImageUrl(selectedIssue.proof_media_url), `Proof — ${selectedIssue.place}`)}
-                    >
-                      <ImageIcon size={13} style={{ marginRight: 6, verticalAlign: '-2px' }} /> View Resolution Proof Photo ↗
-                    </button>
+                    {/\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(selectedIssue.proof_media_url) ? (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ai)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Video size={13} /> Resolution Proof Video
+                        </div>
+                        <video
+                          src={getImageUrl(selectedIssue.proof_media_url)}
+                          controls
+                          style={{ width: '100%', maxHeight: 260, borderRadius: 8, background: '#000', display: 'block' }}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        className="btn btn-resolve"
+                        style={{ fontSize: 12, padding: '6px 12px' }}
+                        onClick={() => onOpenLightbox(getImageUrl(selectedIssue.proof_media_url), `Proof — ${selectedIssue.place}`)}
+                      >
+                        <ImageIcon size={13} style={{ marginRight: 6, verticalAlign: '-2px' }} /> View Resolution Proof Photo ↗
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

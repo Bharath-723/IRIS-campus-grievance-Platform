@@ -1,6 +1,8 @@
 import os
+import uuid
 import requests
 from flask import Flask, jsonify, request, send_from_directory, Response
+from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from db import get_db
 
@@ -15,6 +17,9 @@ CORS(app)
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads', 'drive_cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads', 'resolutions')
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 _drive_creds = None
 def get_drive_token():
@@ -122,6 +127,40 @@ def proxy_drive_image(file_id):
 
     # 3. Fallback placeholder SVG
     return Response(get_svg_placeholder("Photo Evidence"), mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=60'})
+
+
+# ── Upload Proof Media (Image or Video) ──
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv', 'pdf'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file part in request'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No selected file'}), 400
+    if file and allowed_file(file.filename):
+        original_name = secure_filename(file.filename) or 'proof'
+        ext = original_name.rsplit('.', 1)[-1].lower() if '.' in original_name else ''
+        unique_id = uuid.uuid4().hex[:10]
+        saved_filename = f"{unique_id}_{original_name}"
+        save_path = os.path.join(UPLOAD_DIR, saved_filename)
+        file.save(save_path)
+        is_video = ext in {'mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'}
+        return jsonify({
+            'success': True,
+            'url': f"/api/uploads/{saved_filename}",
+            'filename': original_name,
+            'media_type': 'video' if is_video else 'image'
+        })
+    return jsonify({'success': False, 'error': 'File type not allowed'}), 400
+
+@app.route('/api/uploads/<path:filename>', methods=['GET'])
+def serve_upload(filename):
+    return send_from_directory(UPLOAD_DIR, filename)
 
 
 # ── GET all accepted issues ──
@@ -338,7 +377,7 @@ def get_stats():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ── GET Top 10 Repeated Tickets & First Raisers ──
+# ── GET Top 10 Repeated Tickets & First Raisers (Excludes Rewarded) ──
 @app.route('/api/top-issues', methods=['GET'])
 def get_top_issues():
     try:
@@ -359,17 +398,20 @@ def get_top_issues():
                 ai.created_at,
                 ai.ai_category,
                 ai.ai_suggested_solution,
+                COALESCE(ai.reward_given, FALSE) AS reward_given,
                 COALESCE(EXTRACT(DAY FROM (NOW() - ai.created_at))::INT, 0) AS days_open,
                 COUNT(s.id) AS total_solutions
             FROM accepted_issues ai
             LEFT JOIN solutions s ON s.issue_id = ai.id
+            WHERE COALESCE(ai.reward_given, FALSE) = FALSE
             GROUP BY
                 ai.id, ai.place, ai.representative_issue,
                 ai.severity_level, ai.issue_duration,
                 ai.frequency, ai.first_raiser_name,
                 ai.first_raiser_email, ai.media_url,
                 ai.status, ai.created_at,
-                ai.ai_category, ai.ai_suggested_solution
+                ai.ai_category, ai.ai_suggested_solution,
+                ai.reward_given
             ORDER BY ai.frequency DESC, ai.id ASC
             LIMIT 10;
         """)
@@ -387,7 +429,7 @@ def get_top_issues():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ── GET Top 10 Solutions & AI Chosen Winner ──
+# ── GET Top 10 Solutions & AI Chosen Winner (Excludes Rewarded) ──
 @app.route('/api/top-solutions', methods=['GET'])
 def get_top_solutions():
     try:
@@ -413,7 +455,12 @@ def get_top_solutions():
             FROM solutions s
             JOIN accepted_issues ai ON s.issue_id = ai.id
             WHERE LOWER(TRIM(s.solution_text)) NOT IN ('no solution', 'none', 'no', 'n/a', '')
-            ORDER BY s.ai_score DESC, LENGTH(s.solution_text) DESC, s.id ASC
+              AND COALESCE(s.reward_given, FALSE) = FALSE
+            ORDER BY
+                (CASE WHEN s.ai_selected THEN 1 ELSE 0 END) DESC,
+                s.ai_score DESC,
+                LENGTH(s.solution_text) DESC,
+                s.id ASC
             LIMIT 10;
         """)
         rows = cursor.fetchall()
@@ -431,6 +478,46 @@ def get_top_solutions():
             winner = solutions[0]
         conn.close()
         return jsonify({'success': True, 'winner': winner, 'solutions': solutions})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── ISSUE REWARD for Top Ticket Raiser ──
+@app.route('/api/issues/<int:issue_id>/issue-reward', methods=['POST'])
+def issue_ticket_reward(issue_id):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE accepted_issues
+            SET reward_given = TRUE, reward_given_at = NOW(), updated_at = NOW()
+            WHERE id = %s
+        """, (issue_id,))
+        cursor.execute("""
+            INSERT INTO resolution_log (issue_id, action_by, action_note, escalated)
+            VALUES (%s, 'admin', 'Admin issued First-Raiser Consensus Reward to student', FALSE)
+        """, (issue_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Ticket reward successfully issued!'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── ISSUE REWARD for Top Solution Contributor ──
+@app.route('/api/solutions/<int:solution_id>/issue-reward', methods=['POST'])
+def issue_solution_reward(solution_id):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE solutions
+            SET reward_given = TRUE, reward_given_at = NOW()
+            WHERE id = %s
+        """, (solution_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Solution reward successfully issued!'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -537,13 +624,14 @@ def get_single_issue(issue_id):
 
 
 # ── GET Previous Winners (Ticket Raisers + Solution Winners) ──
+# Keeps only the top 1 awarded ticket winner and top 1 awarded solution winner
 @app.route('/api/winners', methods=['GET'])
 def get_previous_winners():
     try:
         conn = get_db()
         cursor = conn.cursor()
 
-        # 1. Top Ticket Raiser Winners (Top repeated consensus issues, first student who raised it)
+        # 1. Top 1 Awarded Ticket Raiser Winner
         cursor.execute("""
             SELECT
                 ai.id,
@@ -559,19 +647,23 @@ def get_previous_winners():
                 ai.created_at,
                 ai.ai_category,
                 ai.ai_suggested_solution,
+                ai.reward_given,
+                ai.reward_given_at,
                 COALESCE(EXTRACT(DAY FROM (NOW() - ai.created_at))::INT, 0) AS days_open,
                 COUNT(s.id) AS total_solutions
             FROM accepted_issues ai
             LEFT JOIN solutions s ON s.issue_id = ai.id
+            WHERE ai.reward_given = TRUE
             GROUP BY
                 ai.id, ai.place, ai.representative_issue,
                 ai.severity_level, ai.issue_duration,
                 ai.frequency, ai.first_raiser_name,
                 ai.first_raiser_email, ai.media_url,
                 ai.status, ai.created_at,
-                ai.ai_category, ai.ai_suggested_solution
-            ORDER BY ai.frequency DESC, ai.created_at ASC, ai.id ASC
-            LIMIT 10;
+                ai.ai_category, ai.ai_suggested_solution,
+                ai.reward_given, ai.reward_given_at
+            ORDER BY ai.reward_given_at DESC NULLS LAST, ai.frequency DESC
+            LIMIT 1;
         """)
         ticket_rows = cursor.fetchall()
         t_cols = [c[0] for c in cursor.description]
@@ -580,9 +672,11 @@ def get_previous_winners():
             d = dict(zip(t_cols, row))
             if d.get('created_at'):
                 d['created_at'] = str(d['created_at'])
+            if d.get('reward_given_at'):
+                d['reward_given_at'] = str(d['reward_given_at'])
             ticket_winners.append(d)
 
-        # 2. Best Solution Contribution Winners (AI & community selected best solutions)
+        # 2. Top 1 Awarded Solution Contribution Winner
         cursor.execute("""
             SELECT
                 s.id,
@@ -595,6 +689,7 @@ def get_previous_winners():
                 s.wants_reward,
                 s.is_unique,
                 s.reward_given,
+                s.reward_given_at,
                 s.submitted_at,
                 ai.representative_issue,
                 ai.place,
@@ -606,13 +701,9 @@ def get_previous_winners():
                 ai.created_at AS issue_created_at
             FROM solutions s
             JOIN accepted_issues ai ON s.issue_id = ai.id
-            WHERE LOWER(TRIM(s.solution_text)) NOT IN ('no solution', 'none', 'no', 'n/a', '')
-            ORDER BY
-                (CASE WHEN s.ai_selected THEN 1 ELSE 0 END) DESC,
-                s.ai_score DESC,
-                LENGTH(s.solution_text) DESC,
-                s.id ASC
-            LIMIT 10;
+            WHERE s.reward_given = TRUE
+            ORDER BY s.reward_given_at DESC NULLS LAST, s.ai_score DESC
+            LIMIT 1;
         """)
         solution_rows = cursor.fetchall()
         s_cols = [c[0] for c in cursor.description]
@@ -621,6 +712,8 @@ def get_previous_winners():
             d = dict(zip(s_cols, row))
             if d.get('submitted_at'):
                 d['submitted_at'] = str(d['submitted_at'])
+            if d.get('reward_given_at'):
+                d['reward_given_at'] = str(d['reward_given_at'])
             if d.get('issue_created_at'):
                 d['issue_created_at'] = str(d['issue_created_at'])
             solution_winners.append(d)

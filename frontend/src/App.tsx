@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { DashboardStats, Issue, ResolvedIssue, TopSolution, WinnersData } from './types';
-import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, fetchResolvedIssues, fetchWinners, markSolutionUnique } from './services/api';
+import { fetchIssues, fetchStats, fetchTopIssues, fetchTopSolutions, fetchResolvedIssues, fetchWinners, markSolutionUnique, issueTicketReward, issueSolutionReward } from './services/api';
 import { Navbar } from './components/Navbar';
 import { Toolbar } from './components/Toolbar';
 import { IssueCard } from './components/IssueCard';
@@ -102,6 +102,26 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleIssueTicketReward = async (issueId: number) => {
+    try {
+      await issueTicketReward(issueId);
+      alert('🎉 First-Raiser Consensus Reward successfully issued! The ticket has moved to Previous Winners.');
+      await loadData();
+    } catch (e) {
+      alert('Failed to issue ticket reward: ' + e);
+    }
+  };
+
+  const handleIssueSolutionReward = async (solutionId: number) => {
+    try {
+      await issueSolutionReward(solutionId);
+      alert('🎉 Best Solution Contribution Reward successfully issued! The solution has moved to Previous Winners.');
+      await loadData();
+    } catch (e) {
+      alert('Failed to issue solution reward: ' + e);
+    }
+  };
+
   // Filtered issues for Main Active Tickets view (excludes resolved tickets)
   const filteredIssues = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -195,6 +215,7 @@ export const App: React.FC = () => {
             onOpenSolutions={setSolutionsIssue}
             onOpenResolve={setResolveIssue}
             onOpenStatus={setStatusIssue}
+            onIssueReward={handleIssueTicketReward}
           />
         )}
 
@@ -203,6 +224,7 @@ export const App: React.FC = () => {
             winner={topSolutionsData.winner}
             solutions={topSolutionsData.solutions}
             onMarkUnique={handleMarkUniqueSolution}
+            onIssueReward={handleIssueSolutionReward}
           />
         )}
 

@@ -21,6 +21,8 @@ export interface Issue {
   days_open: number;
   total_solutions: number;
   reward_seekers: number;
+  reward_given?: boolean;
+  reward_given_at?: string;
 }
 
 export interface Solution {
@@ -71,6 +73,7 @@ export interface SolutionWinner extends TopSolution {
   first_raiser_name?: string;
   first_raiser_email?: string;
   issue_created_at?: string;
+  reward_given_at?: string;
 }
 
 export interface WinnersData {

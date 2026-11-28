@@ -1,18 +1,29 @@
 import React from 'react';
 import { TopSolution } from '../types';
-import { Crown, Sparkles, Award, CheckCircle, ThumbsUp, Star } from 'lucide-react';
+import { Crown, Sparkles, Award, CheckCircle, ThumbsUp, Star, Gift } from 'lucide-react';
 
 interface TopSolutionsViewProps {
   winner: TopSolution | null;
   solutions: TopSolution[];
   onMarkUnique: (id: number) => void;
+  onIssueReward: (solutionId: number) => void;
 }
 
 export const TopSolutionsView: React.FC<TopSolutionsViewProps> = ({
   winner,
   solutions,
   onMarkUnique,
+  onIssueReward,
 }) => {
+  const handleIssueRewardClick = (sol: TopSolution) => {
+    const recipient = sol.submitter_name || 'this student';
+    const confirmed = window.confirm(
+      `Issue Best Solution Contribution Reward to ${recipient} for "${sol.solution_text}"?\n\nThis will officially award the student and move them to Previous Winners. This solution will be removed from Top Solutions.`
+    );
+    if (confirmed) {
+      onIssueReward(sol.id);
+    }
+  };
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Banner */}
@@ -80,6 +91,14 @@ export const TopSolutionsView: React.FC<TopSolutionsViewProps> = ({
                   ✓ AI Verified
                 </span>
               </div>
+
+              <button
+                className="btn-issue-reward-solution"
+                onClick={() => handleIssueRewardClick(winner)}
+                style={{ marginTop: 14 }}
+              >
+                <Gift size={14} /> Issue Reward to Winner
+              </button>
             </div>
           </div>
         </div>

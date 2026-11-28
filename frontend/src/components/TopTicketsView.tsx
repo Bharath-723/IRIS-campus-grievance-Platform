@@ -1,12 +1,13 @@
 import React from 'react';
 import { Issue } from '../types';
-import { Trophy, Flame, MapPin, Award, CheckCircle, Clock } from 'lucide-react';
+import { Trophy, Flame, MapPin, Award, CheckCircle, Clock, Gift } from 'lucide-react';
 
 interface TopTicketsViewProps {
   issues: Issue[];
   onOpenSolutions: (issue: Issue) => void;
   onOpenResolve: (issue: Issue) => void;
   onOpenStatus: (issue: Issue) => void;
+  onIssueReward: (issueId: number) => void;
 }
 
 function getCategoryIcon(cat?: string): string {
@@ -32,7 +33,18 @@ export const TopTicketsView: React.FC<TopTicketsViewProps> = ({
   onOpenSolutions,
   onOpenResolve,
   onOpenStatus,
+  onIssueReward,
 }) => {
+  const handleIssueRewardClick = (issue: Issue) => {
+    const recipient = issue.first_raiser_name || 'this student';
+    const confirmed = window.confirm(
+      `Issue First-Raiser Consensus Reward to ${recipient} for "${issue.representative_issue}"?\n\nThis will officially award the student and move them to Previous Winners. The card will be removed from Top Tickets.`
+    );
+    if (confirmed) {
+      onIssueReward(issue.id);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* View Header Banner */}
@@ -89,9 +101,21 @@ export const TopTicketsView: React.FC<TopTicketsViewProps> = ({
                   )}
                 </div>
 
-                <div className="status-dot">
-                  <div className={`dot dot-${issue.status || 'open'}`} />
-                  {(issue.status || 'open').replace('_', ' ')}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {rank === 1 && (
+                    <button
+                      className="btn-issue-reward"
+                      onClick={() => handleIssueRewardClick(issue)}
+                      title="Issue official reward to this student and move to Previous Winners"
+                    >
+                      <Gift size={13} /> Issue Reward
+                    </button>
+                  )}
+
+                  <div className="status-dot">
+                    <div className={`dot dot-${issue.status || 'open'}`} />
+                    {(issue.status || 'open').replace('_', ' ')}
+                  </div>
                 </div>
               </div>
 
@@ -128,6 +152,15 @@ export const TopTicketsView: React.FC<TopTicketsViewProps> = ({
                   </div>
 
                   <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
+                    {rank === 1 && (
+                      <button
+                        className="btn-issue-reward-prominent"
+                        onClick={() => handleIssueRewardClick(issue)}
+                        style={{ marginBottom: 6 }}
+                      >
+                        <Gift size={13} /> Issue Reward to Student
+                      </button>
+                    )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                       <Clock size={13} /> First reported
                     </div>

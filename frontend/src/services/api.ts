@@ -105,6 +105,38 @@ export async function fetchResolutionRecord(issueId: number): Promise<Resolution
   return data.records;
 }
 
+export async function issueTicketReward(issueId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/issues/${issueId}/issue-reward`, {
+    method: 'POST',
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to issue ticket reward');
+}
+
+export async function issueSolutionReward(solutionId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/solutions/${solutionId}/issue-reward`, {
+    method: 'POST',
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to issue solution reward');
+}
+
+export async function uploadResolutionProof(file: File): Promise<{
+  url: string;
+  filename: string;
+  media_type: 'image' | 'video';
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to upload proof media');
+  return data;
+}
+
 export function getImageUrl(url?: string): string {
   if (!url) return '';
   const match = url.match(/id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);
