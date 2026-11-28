@@ -3,6 +3,11 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 def is_valid_email(email: str) -> bool:
     if not email:
@@ -152,6 +157,10 @@ def send_resolution_email(
     """
 
     # 1. Check for SMTP credentials in environment
+    try:
+        load_dotenv(override=True)
+    except Exception:
+        pass
     smtp_host = os.getenv("SMTP_HOST") or os.getenv("SMTP_SERVER") or "smtp.gmail.com"
     smtp_port = int(os.getenv("SMTP_PORT", 587))
     smtp_user = os.getenv("SMTP_USER") or os.getenv("SMTP_EMAIL")
