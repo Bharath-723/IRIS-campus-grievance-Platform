@@ -37,6 +37,7 @@ def generate_smart_solution(issue_text: str, place: str = '', category: str = ''
     clean_issue = (issue_text or '').strip()
     clean_place = (place or 'Campus').strip()
     clean_cat = (category or '').strip().lower()
+    issue_lower = clean_issue.lower()
     combined = f"{clean_issue} {clean_place} {clean_cat}".lower()
 
     # 1. Try Gemini AI if available
@@ -62,14 +63,9 @@ def generate_smart_solution(issue_text: str, place: str = '', category: str = ''
             pass
 
     # 2. Intelligent Domain Advisory Rules (Context-Aware Action Plans)
-    if any(k in combined for k in ['table', 'tables', 'clean', 'dirty', 'trash', 'dust', 'stink', 'smell', 'hygiene', 'washroom', 'toilet']):
-        return (
-            f"Schedule dedicated housekeeping sanitization rounds every 30 minutes during peak hours at {clean_place}, and install touch-free disinfectant wipe stations.",
-            "Immediate, recurring sanitation prevents microbial spread and maintains a clean, hygienic student environment."
-        )
-
-    if any(k in combined for k in ['fan', 'fans', 'light', 'lights', 'switch', 'ac', 'cooler', 'electric', 'shock', 'wire', 'wires']):
-        if 'shock' in combined or 'wire' in combined or 'hazard' in combined:
+    # Priority 1: Match directly on issue description text
+    if any(k in issue_lower for k in ['fan', 'fans', 'light', 'lights', 'switch', 'ac', 'cooler', 'electric', 'shock', 'wire', 'wires']):
+        if any(k in issue_lower for k in ['shock', 'wire', 'hazard', 'spark']):
             return (
                 f"Immediately cordon off the electrical area in {clean_place}, bundle exposed wiring inside heavy-duty PVC conduit casing, and replace compromised circuit breakers.",
                 "Urgent electrical isolation neutralizes shock and fire hazards to safeguard student safety."
@@ -79,16 +75,57 @@ def generate_smart_solution(issue_text: str, place: str = '', category: str = ''
             "Restoring proper ventilation and illumination prevents heat fatigue and restores classroom/canteen comfort."
         )
 
-    if any(k in combined for k in ['parking', 'bike', 'bikes', 'vehicle', 'car', 'space for bikes']):
+    if any(k in issue_lower for k in ['clean', 'cleaning', 'dirty', 'trash', 'dust', 'litter', 'littering', 'stink', 'smell', 'hygiene', 'washroom', 'toilet', 'floor']):
+        return (
+            f"Schedule dedicated housekeeping sanitization rounds every 30 minutes during peak hours at {clean_place}, and install touch-free disinfectant wipe stations.",
+            "Immediate, recurring sanitation prevents microbial spread and maintains a clean, hygienic student environment."
+        )
+
+    if any(k in issue_lower for k in ['wifi', 'wi-fi', 'internet', 'network', 'signal', 'speed', 'router']):
+        return (
+            f"Install enterprise dual-band Wi-Fi access points with dynamic bandwidth load balancing in {clean_place}, and conduct weekly network health audits with the IT department.",
+            "Enhanced wireless infrastructure guarantees uninterrupted access for student academic research and online classes."
+        )
+
+    if any(k in issue_lower for k in ['grass', 'lawn', 'garden', 'mud', 'turf']):
+        return (
+            f"Aerate the soil at {clean_place}, plant resilient Bermuda grass turf with an automated sprinkler system, and install modular all-weather benches for student leisure.",
+            "Rejuvenating green landscaping prevents soil erosion and creates a pleasant, restorative campus retreat zone."
+        )
+
+    if any(k in issue_lower for k in ['parking', 'bike', 'bikes', 'vehicle', 'car', 'space for bikes']):
         return (
             f"Re-engineer parking layout in {clean_place} with painted diagonal bays, separate two-wheeler entry corridors, and station security marshals during morning arrival rush.",
             "Organized spatial demarcations increase parking capacity by 35% and eliminate entry bottlenecks."
         )
 
-    if any(k in combined for k in ['grass', 'lawn', 'retreat', 'ground', 'garden', 'mud', 'turf']):
+    if any(k in issue_lower for k in ['place', 'space', 'crowd', 'crowded', 'capacity', 'not enough place', 'too small', 'competitor', 'competitors']):
         return (
-            f"Aerate the soil at {clean_place}, plant resilient Bermuda grass turf with an automated sprinkler system, and install modular all-weather benches for student leisure.",
-            "Rejuvenating green landscaping prevents soil erosion and creates a pleasant, restorative campus retreat zone."
+            f"Implement an active zone management system in {clean_place} with optimized modular seating arrangements and clear student circulation corridors.",
+            "Dynamic space planning maximizes utilization capacity by 40% and relieves peak traffic congestion."
+        )
+
+    if any(k in issue_lower for k in ['price', 'prices', 'canteen', 'expensive', 'cost', 'costly']):
+        return (
+            f"Institute an administrative price cap audit on canteen vendors at {clean_place} and introduce student-subsidized meal vouchers.",
+            "Regular tariff regulation prevents unauthorized markups and preserves student affordability."
+        )
+
+    # Priority 2: Fallback to category / location context
+    if 'tech' in clean_cat:
+        return (
+            f"Dispatch IT systems specialists to diagnose hardware, peripheral connectors, and network ports in {clean_place}.",
+            "Prompt technical recalibration ensures smooth academic operations and lab readiness."
+        )
+    if 'hygiene' in clean_cat:
+        return (
+            f"Deploy deep sanitization crews to steam-clean and sanitize all contact surfaces in {clean_place}.",
+            "Thorough surface sanitation eliminates bacteria and upholds campus hygiene."
+        )
+    if 'infra' in clean_cat:
+        return (
+            f"Assign campus civil and facilities engineers to inspect structural integrity and repair defects in {clean_place}.",
+            "Preventive structural maintenance extends asset longevity and guarantees student safety."
         )
 
     if any(k in combined for k in ['wifi', 'wi-fi', 'internet', 'network', 'speed', 'portal', 'pc', 'computer', 'lab']):

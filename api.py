@@ -658,6 +658,7 @@ def get_single_issue(issue_id):
                 ai.status,
                 ai.created_at,
                 ai.ai_category,
+                ai.ai_suggested_solution,
                 ai.ai_best_solution,
                 ai.ai_best_solution_id,
                 ai.ai_reason,
@@ -673,7 +674,7 @@ def get_single_issue(issue_id):
                 ai.frequency, ai.first_raiser_name,
                 ai.first_raiser_email, ai.media_url,
                 ai.status, ai.created_at,
-                ai.ai_category, ai.ai_best_solution,
+                ai.ai_category, ai.ai_suggested_solution, ai.ai_best_solution,
                 ai.ai_best_solution_id, ai.ai_reason
         """, (issue_id,))
         row = cursor.fetchone()

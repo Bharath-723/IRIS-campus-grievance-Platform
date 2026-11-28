@@ -266,6 +266,30 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
             </div>
           </div>
 
+          {/* AI Recommended Solution Banner */}
+          {issue.ai_suggested_solution && (
+            <div
+              style={{
+                background: 'var(--ai-bg)',
+                border: '1px solid rgba(168, 85, 247, 0.35)',
+                borderRadius: 10,
+                padding: '14px 18px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: 'var(--ai)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <Sparkles size={15} /> 🤖 AI Recommended Action Plan
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, marginTop: 8 }}>
+                {issue.ai_suggested_solution}
+              </div>
+              {issue.ai_reason && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 6 }}>
+                  💡 <strong>AI Rationale:</strong> {issue.ai_reason}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Solutions Section */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

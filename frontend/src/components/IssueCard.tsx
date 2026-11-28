@@ -96,24 +96,22 @@ export const IssueCard: React.FC<IssueCardProps> = ({
   const imageUrl = getImageUrl(issue.media_url);
   const reporter = getReporterDisplay(issue.first_raiser_name, issue.first_raiser_email);
 
-  const [currentSolution, setCurrentSolution] = useState(
-    issue.ai_best_solution || issue.ai_suggested_solution || ''
-  );
-  const [currentReason, setCurrentReason] = useState(issue.ai_reason || '');
+  const [aiSolution, setAiSolution] = useState(issue.ai_suggested_solution || '');
+  const [aiReason, setAiReason] = useState(issue.ai_reason || '');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
   useEffect(() => {
-    setCurrentSolution(issue.ai_best_solution || issue.ai_suggested_solution || '');
-    setCurrentReason(issue.ai_reason || '');
-  }, [issue.ai_best_solution, issue.ai_suggested_solution, issue.ai_reason]);
+    setAiSolution(issue.ai_suggested_solution || '');
+    setAiReason(issue.ai_reason || '');
+  }, [issue.ai_suggested_solution, issue.ai_reason]);
 
   const handleRefreshAi = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsGeneratingAi(true);
     try {
       const res = await requestAiRecommendation(issue.id);
-      setCurrentSolution(res.ai_suggested_solution);
-      setCurrentReason(res.ai_reason);
+      setAiSolution(res.ai_suggested_solution);
+      setAiReason(res.ai_reason);
     } catch (err) {
       alert('Could not refresh AI recommendation: ' + err);
     } finally {
@@ -170,12 +168,49 @@ export const IssueCard: React.FC<IssueCardProps> = ({
           {issue.representative_issue || 'No description provided'}
         </div>
 
-        {/* 🤖 AI Recommended Solution Proposal */}
+        {/* 👥 1. PEOPLE / STUDENT PROPOSED SOLUTION */}
+        {issue.ai_best_solution ? (
+          <div className="people-solution-box">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="people-solution-label">
+                <Users size={12} />
+                <span>👥 People's Proposed Solution</span>
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--people)', fontWeight: 700 }}>
+                👑 Student Choice
+              </span>
+            </div>
+            <div className="people-solution-text">
+              "{issue.ai_best_solution}"
+            </div>
+          </div>
+        ) : (
+          <div className="people-solution-box empty">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="people-solution-label" style={{ color: 'var(--text-muted)' }}>
+                <Users size={12} />
+                <span>👥 People's Proposed Solution</span>
+              </div>
+              <button
+                className="btn-propose-solution"
+                onClick={() => onOpenSolutions(issue)}
+                title="Submit your solution for this issue to win rewards"
+              >
+                + Propose Solution
+              </button>
+            </div>
+            <div className="people-solution-empty">
+              No student solutions submitted yet. Submit one to earn rewards!
+            </div>
+          </div>
+        )}
+
+        {/* 🤖 2. AI RECOMMENDED ACTION PLAN */}
         <div className="ai-solution-box">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="ai-solution-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div className="ai-solution-label">
               <Sparkles size={13} color="var(--ai)" />
-              <span>{issue.ai_best_solution ? '👑 Top Crowd Solution (AI Verified)' : '🤖 AI Recommended Solution'}</span>
+              <span>🤖 AI Recommended Action Plan</span>
             </div>
             <button
               className="btn-refresh-ai"
@@ -187,11 +222,15 @@ export const IssueCard: React.FC<IssueCardProps> = ({
             </button>
           </div>
 
-          <div className="ai-solution-text" style={{ marginTop: 6, lineHeight: 1.45 }}>
-            {currentSolution || 'Analyzing optimal campus resolution strategy...'}
+          <div className="ai-solution-text">
+            {aiSolution || 'Click "✨ Ask AI" to generate an automated resolution strategy.'}
           </div>
 
-          {currentReason && <div className="ai-reason" style={{ marginTop: 4 }}>{currentReason}</div>}
+          {aiReason && (
+            <div className="ai-reason">
+              💡 <strong>AI Rationale:</strong> {aiReason}
+            </div>
+          )}
         </div>
 
         <div className="card-meta">

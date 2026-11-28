@@ -21,6 +21,9 @@
   --low-bg: rgba(16, 185, 129, 0.15);
   --ai: #a855f7;
   --ai-bg: rgba(168, 85, 247, 0.12);
+  --people: #38bdf8;
+  --people-bg: rgba(56, 189, 248, 0.1);
+  --people-border: rgba(56, 189, 248, 0.35);
   --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   --radius: 12px;
 }
@@ -48,6 +51,9 @@
   --low-bg: rgba(5, 150, 105, 0.12);
   --ai: #7e22ce;
   --ai-bg: rgba(126, 34, 206, 0.1);
+  --people: #0284c7;
+  --people-bg: rgba(2, 132, 199, 0.08);
+  --people-border: rgba(2, 132, 199, 0.3);
   --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
@@ -348,13 +354,66 @@ main {
   line-height: 1.4;
 }
 
+/* People / Student Proposed Solution Box */
+.people-solution-box {
+  background: var(--people-bg);
+  border: 1px solid var(--people-border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 6px;
+  transition: all 0.2s ease;
+}
+.people-solution-box.empty {
+  background: transparent;
+  border: 1px dashed var(--border);
+}
+.people-solution-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--people);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.people-solution-text {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+  margin-top: 4px;
+  font-weight: 500;
+}
+.people-solution-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 4px;
+}
+.btn-propose-solution {
+  background: none;
+  border: none;
+  color: var(--people);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.btn-propose-solution:hover {
+  background: var(--people-bg);
+  text-decoration: underline;
+}
+
 /* AI Solution Box */
 .ai-solution-box {
   background: var(--ai-bg);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  border: 1px solid rgba(168, 85, 247, 0.35);
   border-radius: 8px;
   padding: 10px;
-  margin-top: 4px;
+  margin-top: 6px;
+  transition: all 0.2s ease;
 }
 .ai-solution-label {
   font-size: 10px;
@@ -365,17 +424,17 @@ main {
   margin-bottom: 4px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 .ai-solution-text {
   font-size: 12px;
   color: var(--text);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 .ai-reason {
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 4px;
+  margin-top: 5px;
   font-style: italic;
 }
 
